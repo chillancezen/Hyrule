@@ -1,12 +1,8 @@
 all:
-	@make --no-print-directory -C bootrom
-	#@make --no-print-directory -C guest
-	@make --no-print-directory -C vmm
+	@make --no-print-directory -C sandbox
 
 clean:
-	@make --no-print-directory clean -C bootrom
-	#@make --no-print-directory clean -C guest
-	@make --no-print-directory clean -C vmm
+	@make --no-print-directory clean -C sandbox
 run:all
 	@./vmm/vmx test.vm.ini
 

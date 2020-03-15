@@ -16,7 +16,7 @@ static void
 device_init(struct virtual_machine * vm)
 {
     clint_init(vm);
-    uart_init();
+    uart_init(vm);
 }
 
 static void
@@ -97,6 +97,6 @@ virtual_machine_init(struct virtual_machine * vm, ini_t * ini)
     misc_init(vm);
     fdt_init(&vm->fdt);
 
-    dump_memory_regions();
+    dump_memory_regions(vm);
 }
 

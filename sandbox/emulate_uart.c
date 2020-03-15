@@ -96,7 +96,7 @@ build_uart_fdt_node(struct fdt_build_blob * blob)
 }
 
 void
-uart_init(void)
+uart_init(struct virtual_machine * vm)
 {
     struct pm_region_operation uart_mmio_region = {
         .addr_low = UART_16550_BASE,
@@ -105,5 +105,5 @@ uart_init(void)
         .pmr_write = uart_mmio_write,
         .pmr_desc = "uart.mmio"
     };
-    register_pm_region_operation(&uart_mmio_region);
+    register_pm_region_operation(vm, &uart_mmio_region);
 }

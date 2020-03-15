@@ -86,7 +86,7 @@ ram_init(struct virtual_machine * vm)
         .pmr_direct = ram_direct,
         .pmr_desc = "main.memory"
     };
-    register_pm_region_operation(&main_memory_pmr);
+    register_pm_region_operation(vm, &main_memory_pmr);
 
     // load the image(maybe a Linux kernel) into ram here
     // FIXME: we need a more sophisticated way to load image later. rigt now we

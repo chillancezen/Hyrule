@@ -11,23 +11,20 @@
 #include <translation.h>
 #include <debug.h>
 #include <ini.h>
+#include <app.h>
 
-
-static void
-vmm_misc_init(ini_t * ini)
-{
-    const char * verbosity_string = ini_get(ini, "debug", "verbosity");
-    if (verbosity_string) {
-        int verbosity = strtol(verbosity_string, NULL, 10);
-        log_set_level(verbosity);
-    }
-}
-int main(int argc, char ** argv)
+int
+main(int argc, char ** argv)
 {
     if (argc <= 1) {
-        log_fatal("please specify the vm config file\n");
+        log_fatal("please specify the application host file path\n");
         exit(1);
     }
+    struct virtual_machine sandbox_vm;
+    application_sandbox_init(&sandbox_vm, argv[1]);
+    //add_breakpoint(0x10308);
+    vmresume(hart_by_id(&sandbox_vm, sandbox_vm.boot_hart));
+#if 0
     // once config file is loaded, don't release it ever.
     ini_t * ini_config = ini_load(argv[1]);
     if (!ini_config) {
@@ -41,5 +38,7 @@ int main(int argc, char ** argv)
     virtual_machine_init(&vm, ini_config);
     vmresume(hart_by_id(&vm, vm.boot_hart));
     __not_reach();
+
+#endif
     return 0;
 }

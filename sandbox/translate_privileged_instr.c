@@ -17,7 +17,7 @@ ebreak_callback(struct hart * hartptr)
 #endif
 }
 
-static void
+void
 riscv_ebreak_translator(struct decoding * dec, struct prefetch_blob * blob,
                         uint32_t instruction)
 {
@@ -58,7 +58,7 @@ mret_callback(struct hart * hartptr)
     
 }
 
-static void
+void
 riscv_mret_translator(struct decoding * dec, struct prefetch_blob * blob,
                       uint32_t instruction)
 {
@@ -96,7 +96,7 @@ sret_callback(struct hart * hartptr)
 
 }
 
-static void
+void
 riscv_sret_translator(struct decoding * dec, struct prefetch_blob * blob,
                       uint32_t instruction)
 {
@@ -134,7 +134,7 @@ sfence_vma_callback(struct hart * hartptr)
     flush_translation_cache(hartptr);
 }
 
-static void
+void
 riscv_sfence_vma_translator(struct decoding * dec, struct prefetch_blob * blob,
                             uint32_t instruction)
 {
@@ -167,6 +167,7 @@ riscv_sfence_vma_translator(struct decoding * dec, struct prefetch_blob * blob,
 __attribute__((unused)) static void
 ecall_callback(struct hart * hartptr)
 {
+    __not_reach();
     uint8_t exception = EXCEPTION_ECALL_FROM_MMODE;
     switch(hartptr->privilege_level)
     {
@@ -227,7 +228,7 @@ wfi_callback(struct hart * hartptr)
     //dump_hart(hartptr);
     __not_reach();
 }
-static void
+void
 riscv_wfi_translator(struct decoding * dec, struct prefetch_blob * blob,
                      uint32_t instruction)
 {
@@ -260,6 +261,7 @@ static void
 riscv_funct3_000_translator(struct decoding * dec, struct prefetch_blob * blob,
                             uint32_t instruction)
 {
+#if 0
     if (((dec->imm >> 5) & 0x7f) == 0x9) {
         riscv_sfence_vma_translator(dec, blob, instruction);
     } else if (dec->rs2_index == 0x5) {
@@ -274,7 +276,9 @@ riscv_funct3_000_translator(struct decoding * dec, struct prefetch_blob * blob,
         } else {
             __not_reach();
         }
-    } else if (dec->rs2_index == 0x0) {
+    } else 
+    #endif
+    if (dec->rs2_index == 0x0) {
         riscv_ecall_translator(dec, blob, instruction); 
     } else {
         log_fatal("can not translate:0x%x at 0x%x\n", instruction, blob->next_instruction_to_fetch);
@@ -312,11 +316,11 @@ supervisor_level_constructor(void)
 {
     memset(per_funct3_handlers, 0x0, sizeof(per_funct3_handlers));
     per_funct3_handlers[0x0] = riscv_funct3_000_translator;
-    per_funct3_handlers[0x1] = riscv_generic_csr_instructions_translator;
-    per_funct3_handlers[0x2] = riscv_generic_csr_instructions_translator;
-    per_funct3_handlers[0x3] = riscv_generic_csr_instructions_translator;
-    per_funct3_handlers[0x5] = riscv_generic_csr_instructions_translator;
-    per_funct3_handlers[0x6] = riscv_generic_csr_instructions_translator;
-    per_funct3_handlers[0x7] = riscv_generic_csr_instructions_translator;
+    //per_funct3_handlers[0x1] = riscv_generic_csr_instructions_translator;
+    //per_funct3_handlers[0x2] = riscv_generic_csr_instructions_translator;
+    //per_funct3_handlers[0x3] = riscv_generic_csr_instructions_translator;
+    //per_funct3_handlers[0x5] = riscv_generic_csr_instructions_translator;
+    //per_funct3_handlers[0x6] = riscv_generic_csr_instructions_translator;
+    //per_funct3_handlers[0x7] = riscv_generic_csr_instructions_translator;
 }
 

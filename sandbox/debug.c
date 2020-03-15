@@ -73,8 +73,8 @@ inspect_memory(struct hart * hartptr, int argc, char *argv[])
         goto error_usage;
     }
     
-    struct pm_region_operation * pmr1 = search_pm_region_callback(low_addr);
-    struct pm_region_operation * pmr2 = search_pm_region_callback(high_addr);
+    struct pm_region_operation * pmr1 = search_pm_region_callback(hartptr->vmptr, low_addr);
+    struct pm_region_operation * pmr2 = search_pm_region_callback(hartptr->vmptr, high_addr);
     if (!pmr1 || pmr1 != pmr2) {
         printf(ANSI_COLOR_RED"memory region doesnt exist or two addresses "
                "do not reside in same pm region\n"ANSI_COLOR_RESET);

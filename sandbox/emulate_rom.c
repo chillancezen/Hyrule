@@ -77,7 +77,7 @@ bootrom_init(struct virtual_machine * vm)
         .pmr_write = bootrom_write,
         .pmr_desc = "bootrom"
     };
-    register_pm_region_operation(&bootrom_pmr);
+    register_pm_region_operation(vm, &bootrom_pmr);
 
     // load the rom image to 0x4000.
     const char * rom_image = ini_get(vm->ini_config, "rom", "rom_image");

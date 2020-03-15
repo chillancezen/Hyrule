@@ -42,6 +42,6 @@ clint_init(struct virtual_machine * vm)
         .pmr_write = clint_write,
         .pmr_desc = "clint.mmio"
     };
-    register_pm_region_operation(&clint_pmr);
+    register_pm_region_operation(vm, &clint_pmr);
 }
 

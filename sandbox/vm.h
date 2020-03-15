@@ -10,6 +10,9 @@
 #include <util.h>
 #include <fdt.h>
 #include <ini.h>
+#include <pm_region.h>
+
+#define MAX_VMA_NR  128
 
 struct virtual_machine {
 
@@ -32,6 +35,10 @@ struct virtual_machine {
 
     // the ini conifguration
     ini_t * ini_config;
+
+    // VMA regions: here we reuse existing data structure: pm_region_operation
+    int nr_pmr_ops;
+    struct pm_region_operation  pmr_ops[MAX_VMA_NR];
 };
 
 __attribute__((always_inline))
@@ -58,7 +65,7 @@ void
 ram_init(struct virtual_machine * vm);
 
 void
-uart_init(void);
+uart_init(struct virtual_machine * vm);
 
 void
 clint_init(struct virtual_machine * vm);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Jie Zheng
+ * Copyright (c) 2019-2020 Jie Zheng
  */
 #ifndef _PM_REGION_H
 #define _PM_REGION_H
@@ -29,16 +29,22 @@ struct pm_region_operation {
     pm_region_read_callback * pmr_read;
     pm_region_write_callback * pmr_write;
     pm_region_direct_address * pmr_direct;
-    char * pmr_desc;
+    char pmr_desc[64];
+
+   // fields for VMA:
+   uint32_t flags;
+   void * host_base;
 };
 
+struct virtual_machine;
+
 void
-register_pm_region_operation(const struct pm_region_operation * pro);
+register_pm_region_operation(struct virtual_machine * vm, const struct pm_region_operation * pro);
 
 struct pm_region_operation *
-search_pm_region_callback(uint64_t guest_pa);
+search_pm_region_callback(struct virtual_machine * vm, uint64_t guest_pa);
 
 void
-dump_memory_regions(void);
+dump_memory_regions(struct virtual_machine * vm);
 
 #endif

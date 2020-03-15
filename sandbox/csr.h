@@ -41,9 +41,12 @@ extern struct csr_registery_entry * csr_registery_head;
 static inline void
 register_csr_entry(struct csr_registery_entry * entry)
 {
+    // Deprecate privileged csrs in application emulation
+#if 0
     entry->next = csr_registery_head;
     csr_registery_head = entry;
     log_debug("registering csr 0x%x\n", entry->csr_addr);
+#endif
 }
 
 

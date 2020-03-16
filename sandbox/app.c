@@ -5,6 +5,7 @@
 #include <string.h>
 #include <util.h>
 #include <elf.h>
+#include <uaccess.h>
 
 static void
 cpu_init(struct virtual_machine * vm)
@@ -86,6 +87,7 @@ static void
 stack_init(struct virtual_machine * vm)
 {
     void * host_stack_base = preallocate_physical_memory(DEFAULT_STACK_SIZE);
+    ASSERT(host_stack_base);
     struct pm_region_operation pmr = {
         .addr_low = DEFAULT_STACK_CELIING - DEFAULT_STACK_SIZE,
         .addr_high = DEFAULT_STACK_CELIING,
@@ -98,6 +100,31 @@ stack_init(struct virtual_machine * vm)
     sprintf(pmr.pmr_desc, "stack[%08x-%08x].RW", pmr.addr_low, pmr.addr_high);
     hart_by_id(vm, 0)->registers.sp = DEFAULT_STACK_CELIING - 0x100;
     register_pm_region_operation(vm, &pmr);
+
+    vm->vma_stack = search_pm_region_callback(vm, pmr.addr_low);
+    ASSERT(vm->vma_stack);
+}
+
+static void
+heap_init(struct virtual_machine * vm, uint32_t proposed_prog_break)
+{
+    uint32_t prog_break = proposed_prog_break + 4096 * 16;
+    // round up to page alignment.
+    prog_break &= ~(4095);
+    struct pm_region_operation pmr = {
+        .addr_low = prog_break - 1,
+        .addr_high = prog_break,
+        .flags = PROGRAM_READ | PROGRAM_WRITE,
+        .pmr_read = vma_generic_read,
+        .pmr_write = vma_generic_write,
+        .pmr_direct = vma_generic_direct,
+        .host_base = NULL,
+    };
+    sprintf(pmr.pmr_desc, "heap[%08x-%08x].RW", pmr.addr_low, pmr.addr_high);
+    register_pm_region_operation(vm, &pmr);
+
+    vm->vma_heap = search_pm_region_callback(vm, prog_break - 1);
+    ASSERT(vm->vma_heap);
 }
 
 static void
@@ -110,7 +137,7 @@ program_init(struct virtual_machine * vm, const char * app_path)
     ASSERT(!elf_header(fd_app, &elf_hdr));
     hart_by_id(vm, 0)->pc = elf_hdr.e_entry;
 
-    
+    uint32_t prog_break = 0; 
     int idx = 0;
     for (idx = 0; idx < elf_hdr.e_phnum; idx++) {
         struct elf32_program_header prog_hdr;
@@ -135,17 +162,112 @@ program_init(struct virtual_machine * vm, const char * app_path)
                 prog_hdr.p_flags & PROGRAM_WRITE ? "W" : "",
                 prog_hdr.p_flags & PROGRAM_EXECUTE ? "X" : "");
         register_pm_region_operation(vm, &pmr);
+
+        if (pmr.addr_high > prog_break) {
+            prog_break = pmr.addr_high;
+        }
     }
     stack_init(vm);
+    heap_init(vm, prog_break);
     dump_memory_regions(vm);
 }
 
+#define MAX_NR_ENVP 128
+#define MAX_NR_ARGV 128
+
+static void
+env_setup(struct virtual_machine * vm, char ** argv, char ** envp)
+{
+    struct hart * hartptr = hart_by_id(vm, 0);
+    uint32_t stack_top = hartptr->registers.sp;
+    uint32_t stack_top_gap = 0;
+    void * stack_top_upointer = user_world_pointer(hartptr, stack_top);
+    ASSERT(stack_top_upointer);
+    #define PUSH_BLOB(blob, len) {                                             \
+        stack_top_upointer -= (len);                                           \
+        stack_top_gap += (len);                                                \
+        memcpy(stack_top_upointer, (blob), (len));                             \
+    }
+
+    #define LOCAL_ALIGN(align) {                                               \
+        uint32_t __riscv_stack_top = stack_top - stack_top_gap;                \
+        uint32_t __riscv_stack_aligned = __riscv_stack_top & (~((align) - 1)); \
+        stack_top_gap += __riscv_stack_top - __riscv_stack_aligned;            \
+        stack_top_upointer -= __riscv_stack_top - __riscv_stack_aligned;       \
+    }
+
+    #define STACK_POS() ({                                                     \
+        stack_top - stack_top_gap;                                             \
+    })
+
+    int idx = 0;
+
+    // copy all environment variables strings on to the stack.
+    uint32_t env_pointer[MAX_NR_ENVP];
+    uint32_t nr_env = 0;
+    for (idx = 0; idx < MAX_NR_ENVP && envp[idx]; idx++) {
+        int len = strlen(envp[idx]);
+        PUSH_BLOB(envp[idx], len + 1);
+        env_pointer[nr_env] = STACK_POS();
+        nr_env++;
+    }
+
+    // copy all arguments strings onto the stack.
+    uint32_t arg_pointer[MAX_NR_ARGV];
+    uint32_t nr_arg = 0;
+    for (idx = 0; idx < MAX_NR_ARGV && argv[idx]; idx++) {
+        int len = strlen(argv[idx]);
+        PUSH_BLOB(argv[idx], len + 1);
+        arg_pointer[nr_arg] = STACK_POS();
+        nr_arg++;
+    }
+
+    LOCAL_ALIGN(16);
+
+    // put auxiliary variables onto the stack.
+    struct {
+        uint32_t a_type;
+        uint32_t a_value;
+    }__attribute__((packed)) aux_vector[] = {
+        {25, stack_top}, // XXX:random. GLIBC needs it.
+        {9, hartptr->pc}, // entry point
+        {0, 0}, // end of vector
+    };
+    int nr_aux = sizeof(aux_vector)/sizeof(aux_vector[0]);   
+    for (idx = nr_aux - 1; idx >=0; idx--) {
+        PUSH_BLOB(&aux_vector[idx], sizeof(aux_vector[idx]));  
+    }
+
+    // put all env pointers onto the stack.
+    uint32_t null_terminator = 0;
+    PUSH_BLOB(&null_terminator, 4);
+    for (idx = nr_env - 1; idx >= 0; idx--) {
+        PUSH_BLOB(&env_pointer[idx], 4);
+    }
+
+    // put all arg pointers onto the stack
+    PUSH_BLOB(&null_terminator, 4);
+    for (idx = nr_arg - 1; idx >= 0; idx--) {
+        PUSH_BLOB(&arg_pointer[idx], 4);
+    }
+
+    // put number of arg onto the stack
+    PUSH_BLOB(&nr_arg, 4);
+
+    hartptr->registers.sp = STACK_POS();
+    #undef PUSH_BLOB
+    #undef LOCAL_ALIGN
+    #undef STACK_POS
+}
+
 void
-application_sandbox_init(struct virtual_machine * vm, const char * app_path)
+application_sandbox_init(struct virtual_machine * vm, const char * app_path,
+                         char ** argv, char ** envp)
 {
     memset(vm, 0x0, sizeof(struct virtual_machine));
 
     cpu_init(vm);
     program_init(vm, app_path);
+    env_setup(vm, argv, envp);
 }
 

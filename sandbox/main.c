@@ -21,8 +21,14 @@ main(int argc, char ** argv)
         exit(1);
     }
     struct virtual_machine sandbox_vm;
-    application_sandbox_init(&sandbox_vm, argv[1]);
-    //add_breakpoint(0x10308);
+    char * envp[]= {
+        NULL
+    };
+    application_sandbox_init(&sandbox_vm, argv[1], argv + 1, envp);
+    //add_breakpoint(0x28a38);
+    //add_breakpoint(0x104e0);
+    //add_breakpoint(0x104e4);
+    //add_breakpoint(0x104e8);
     vmresume(hart_by_id(&sandbox_vm, sandbox_vm.boot_hart));
 #if 0
     // once config file is loaded, don't release it ever.

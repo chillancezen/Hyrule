@@ -67,6 +67,26 @@ search_pm_region_callback(struct virtual_machine * vm, uint64_t guest_pa)
     return rc;
 }
 
+// This function tests whether a vma conflicts with other regions.
+// special for syscall:brk
+int
+is_vma_eligable(struct virtual_machine * vm, struct pm_region_operation * vma)
+{
+    int vma_found = 0;
+    int idx = 0;
+    for (idx = 0; idx < vm->nr_pmr_ops; idx++) {
+        if (&vm->pmr_ops[idx] == vma) {
+            vma_found = 1;
+            continue;
+        }
+        if (vm->pmr_ops[idx].addr_low > vma->addr_low &&
+            vm->pmr_ops[idx].addr_low < vma->addr_high) {
+            break;
+        }
+    }
+    return vma_found && idx == vm->nr_pmr_ops;
+}
+
 void
 register_pm_region_operation(struct virtual_machine * vm, const struct pm_region_operation * pmr)
 {
@@ -77,6 +97,7 @@ register_pm_region_operation(struct virtual_machine * vm, const struct pm_region
     vm->nr_pmr_ops += 1;
     SORT(struct pm_region_operation, vm->pmr_ops, vm->nr_pmr_ops, pm_region_operation_compare);
     {
-        ASSERT(search_pm_region_callback(vm, pmr->addr_low));
+        struct pm_region_operation * _pmr = search_pm_region_callback(vm, pmr->addr_low);
+        ASSERT(pmr && is_vma_eligable(vm, _pmr))
     }
 }

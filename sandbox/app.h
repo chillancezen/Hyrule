@@ -4,5 +4,6 @@
 #include <vm.h>
 
 void
-application_sandbox_init(struct virtual_machine * vm, const char * app_path);
+application_sandbox_init(struct virtual_machine * vm, const char * app_path,
+                         char ** argv, char ** envp);
 

@@ -38,6 +38,9 @@ struct pm_region_operation {
 
 struct virtual_machine;
 
+int
+is_vma_eligable(struct virtual_machine * vm, struct pm_region_operation * vma);
+
 void
 register_pm_region_operation(struct virtual_machine * vm, const struct pm_region_operation * pro);
 

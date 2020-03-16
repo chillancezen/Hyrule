@@ -39,6 +39,8 @@ struct virtual_machine {
     // VMA regions: here we reuse existing data structure: pm_region_operation
     int nr_pmr_ops;
     struct pm_region_operation  pmr_ops[MAX_VMA_NR];
+    struct pm_region_operation * vma_heap;
+    struct pm_region_operation * vma_stack;
 };
 
 __attribute__((always_inline))

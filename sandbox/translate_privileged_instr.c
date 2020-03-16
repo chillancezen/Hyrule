@@ -162,30 +162,22 @@ riscv_sfence_vma_translator(struct decoding * dec, struct prefetch_blob * blob,
     COMMIT_TRANSLATION(sfence_vma_instruction, hartptr, instruction_linear_address);
     blob->is_to_stop = 1;
 }
-
+// Linux system call calling convention.
+// system call number: a7
+// argument list: a0, a1, a2, a3, a4, a5.
+// return :a
 #include <hart_exception.h>
+#include <syscall.h>
 __attribute__((unused)) static void
 ecall_callback(struct hart * hartptr)
 {
-    __not_reach();
-    uint8_t exception = EXCEPTION_ECALL_FROM_MMODE;
-    switch(hartptr->privilege_level)
-    {
-        case PRIVILEGE_LEVEL_MACHINE:
-            exception = EXCEPTION_ECALL_FROM_MMODE;
-            break;
-        case PRIVILEGE_LEVEL_SUPERVISOR:
-            exception = EXCEPTION_ECALL_FROM_SMODE;
-            break;
-        case PRIVILEGE_LEVEL_USER:
-            exception = EXCEPTION_ECALL_FROM_UMODE;
-            break;
-        default:
-            __not_reach();
-            break;
-    }
-    raise_exception(hartptr, exception);
-    
+    hartptr->registers.a0 = do_syscall(hartptr, hartptr->registers.a7,
+                                       hartptr->registers.a0,
+                                       hartptr->registers.a1,
+                                       hartptr->registers.a2,
+                                       hartptr->registers.a3,
+                                       hartptr->registers.a4,
+                                       hartptr->registers.a5);
 }
 
 static void

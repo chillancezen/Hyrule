@@ -60,9 +60,9 @@ search_pm_region_callback(struct virtual_machine * vm, uint64_t guest_pa)
     rc = SEARCH(struct pm_region_operation, vm->pmr_ops, vm->nr_pmr_ops,
                 pm_region_operation_compare, &target);
     #if BUILD_TYPE == BUILD_TYPE_DEBUG
-    if (!rc) {
-        log_debug("can not find a memory for address: 0x%x\n", guest_pa);
-    }
+    //if (!rc) {
+        //log_debug("can not find a memory for address: 0x%x\n", guest_pa);
+    //}
     #endif
     return rc;
 }
@@ -70,7 +70,7 @@ search_pm_region_callback(struct virtual_machine * vm, uint64_t guest_pa)
 // This function tests whether a vma conflicts with other regions.
 // special for syscall:brk
 int
-is_vma_eligable(struct virtual_machine * vm, struct pm_region_operation * vma)
+is_vma_eligible(struct virtual_machine * vm, struct pm_region_operation * vma)
 {
     int vma_found = 0;
     int idx = 0;
@@ -87,6 +87,42 @@ is_vma_eligable(struct virtual_machine * vm, struct pm_region_operation * vma)
     return vma_found && idx == vm->nr_pmr_ops;
 }
 
+int
+is_range_eligible(struct virtual_machine * vm, uint32_t addr_low,
+                  uint32_t addr_high)
+{
+    int idx = 0;
+    for (idx = 0; idx < vm->nr_pmr_ops; idx++) {
+        if (vm->pmr_ops[idx].addr_high <= addr_low) {
+            continue;
+        } else if (vm->pmr_ops[idx].addr_low >=addr_high) {
+            continue;
+        }
+        break;
+    }
+    return idx == vm->nr_pmr_ops;
+}
+
+uint32_t
+search_free_mmap_region(struct virtual_machine * vm, uint32_t size)
+{
+    int idx = 0;
+    uint32_t addr_found = 0;
+    // preserve one page space in order to round the start address up
+    uint32_t len = size + 4096;
+    for (idx = vm->nr_pmr_ops - 1; idx >= 0; idx--) {
+        if ((idx && ((vm->pmr_ops[idx].addr_low - vm->pmr_ops[idx - 1].addr_high) > len)) ||
+            (!idx && vm->pmr_ops[idx].addr_low > len)) {
+            addr_found = vm->pmr_ops[idx].addr_low - len;
+            break;
+        }
+    }
+    if (addr_found) {
+        ASSERT(is_range_eligible(vm, addr_found, addr_found + size));
+    }
+    return addr_found;
+}
+
 void
 register_pm_region_operation(struct virtual_machine * vm, const struct pm_region_operation * pmr)
 {
@@ -98,6 +134,6 @@ register_pm_region_operation(struct virtual_machine * vm, const struct pm_region
     SORT(struct pm_region_operation, vm->pmr_ops, vm->nr_pmr_ops, pm_region_operation_compare);
     {
         struct pm_region_operation * _pmr = search_pm_region_callback(vm, pmr->addr_low);
-        ASSERT(pmr && is_vma_eligable(vm, _pmr))
+        ASSERT(pmr && is_vma_eligible(vm, _pmr))
     }
 }

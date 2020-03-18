@@ -9,6 +9,9 @@
 #include <errno.h>
 #include <unistd.h>
 #include <uaccess.h>
+#include <sys/mman.h>
+#include <app.h>
+#include <elf.h>
 
 #define MAX_PATH 512
  
@@ -193,6 +196,67 @@ do_write(struct hart * hartptr, uint32_t fd, void * buf, uint32_t nr_write)
     return write(vm->files[fd].host_fd, buf, nr_write);
 }
 
+#define PAGE_ROUNDUP(addr) (((addr) & 4095) ? (((addr) & ~4095) + 4096) : (addr))
+
+static uint32_t
+allocate_mmap_region(struct virtual_machine * vm, uint32_t proposal_addr,
+                      uint32_t len, uint32_t mprot)
+{
+    uint32_t eligible_addr_low = 0;
+    int is_eligible = 0;
+    if (proposal_addr) {
+        uint32_t addr_low = PAGE_ROUNDUP(proposal_addr);
+        uint32_t addr_high = addr_low + len;
+
+        // Test whether the address has already been mapped.
+        //  If another mapping already exists there, the kernel picks a new
+        //  address that may or may not depend on the hint.
+        is_eligible = is_range_eligible(vm, addr_low, addr_high);
+        if (is_eligible) {
+            eligible_addr_low = addr_low;
+        }
+    }
+
+    if (!is_eligible)  {
+        uint32_t addr_found = search_free_mmap_region(vm, len);
+        if (addr_found) {
+            is_eligible = 1;
+            eligible_addr_low = PAGE_ROUNDUP(addr_found);
+        }
+    }
+
+    if (!is_eligible) {
+        return -ENOMEM;
+    }
+
+    mmap_setup(vm, eligible_addr_low, len, mprot, NULL);
+    return eligible_addr_low; 
+}
+
+
+uint32_t
+do_mmap(struct hart* hartptr, uint32_t proposal_addr, uint32_t len,
+        uint32_t prot, uint32_t flags, uint32_t fd, uint32_t offset)
+{
+    
+    uint32_t mprot = 0;
+    mprot |= (flags & PROT_READ) ? PROGRAM_READ : 0;
+    mprot |= (flags & PROT_WRITE) ? PROGRAM_WRITE : 0;
+    mprot |= (flags & PROT_EXEC) ? PROGRAM_EXECUTE : 0;
+
+    struct virtual_machine * vm = hartptr->vmptr;
+    if (len == 0) {
+        return -EINVAL;
+    }
+    
+    if (flags & MAP_ANONYMOUS) {
+        return allocate_mmap_region(vm, proposal_addr, len, mprot); 
+    } else {
+        // FIXME: FILE BACKED MAPPING
+        __not_reach();
+    }
+    return 0;
+}
 void
 vfs_init(struct virtual_machine * vm)
 {

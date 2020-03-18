@@ -60,7 +60,7 @@ lr_slowpath(struct hart * hartptr, uint8_t rs1_index, uint8_t rs2_index,
     reservations[next_pointer].valid = 1;
     reservations[next_pointer].hartid = hartptr->hart_id;
     next_pointer = (next_pointer + 1) % MAX_RESERVATION_ITEMS;
-    //log_trace("lr.w address reservation:0x%08x\n", rs1);
+    log_trace("lr.w address reservation:0x%08x\n", rs1);
 }
 
 static void
@@ -87,6 +87,8 @@ sc_slowpath(struct hart * hartptr, uint8_t rs1_index, uint8_t rs2_index,
     } else {
         regs[rd_index] = 0x1;
     }
+
+    log_trace("lr.w address reservation:0x%08x %s\n", rs1, regs[rd_index] == 0 ? "succees" : "failure");
 }
 
 static void
@@ -122,6 +124,17 @@ amoand_slowpath(struct hart * hartptr, uint8_t rs1_index, uint8_t rs2_index,
     mmu_write32_aligned(hartptr, rs1, regs[rd_index] & rs2);
 }
 
+static void
+amomaxu_slowpath(struct hart * hartptr, uint8_t rs1_index, uint8_t rs2_index,
+                uint8_t rd_index)
+{
+    uint32_t * regs = (uint32_t *)&hartptr->registers;
+    uint32_t rs1 = regs[rs1_index];
+    uint32_t rs2 = regs[rs2_index];
+    regs[rd_index]= mmu_read32_aligned(hartptr, rs1);
+    mmu_write32_aligned(hartptr, rs1, regs[rd_index] > rs2 ? regs[rd_index] : rs2);
+}
+
 void
 amo_instruction_slowpath(struct hart * hartptr, uint8_t rs1_index,
                          uint8_t rs2_index, uint8_t rd_index, uint32_t funct5)
@@ -139,6 +152,7 @@ amo_instruction_slowpath(struct hart * hartptr, uint8_t rs1_index,
         _(0x4, amoxor_slowpath);
         _(0x8, amoor_slowpath);
         _(0xc, amoand_slowpath);
+        _(0x1c, amomaxu_slowpath);
         default:
             __not_reach();
             break;
@@ -220,4 +234,5 @@ amo_constructor(void)
     per_funct5_handlers[0x4] = riscv_amo_translator; //amoxor.w
     per_funct5_handlers[0x8] = riscv_amo_translator; // amoor.w
     per_funct5_handlers[0xc] = riscv_amo_translator; // amoand.w
+    per_funct5_handlers[0x1c] = riscv_amo_translator; // AMOMAXU.W
 }

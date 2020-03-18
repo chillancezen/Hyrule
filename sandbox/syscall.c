@@ -49,7 +49,7 @@ call_brk(struct hart * hartptr, uint32_t addr)
         ASSERT(addr > vm->vma_heap->addr_high);
         uint32_t addr_high_bak = vm->vma_heap->addr_high;
         vm->vma_heap->addr_high = addr;
-        if (!is_vma_eligable(vm, vm->vma_heap)) {
+        if (!is_vma_eligible(vm, vm->vma_heap)) {
             vm->vma_heap->addr_high = addr_high_bak;
             return -1;
         }
@@ -128,6 +128,19 @@ call_exit(struct hart * hartptr, uint32_t status)
     return 0;
 }
 
+static uint32_t
+call_mmap(struct hart * hartptr, uint32_t proposal_addr, uint32_t len,
+          uint32_t prot, uint32_t flags, uint32_t fd, uint32_t offset)
+{ 
+    return do_mmap(hartptr, proposal_addr, len, prot, flags, fd, offset);
+}
+
+static uint32_t
+call_munmap(struct hart * hartptr, uint32_t addr, uint32_t len)
+{
+    return 0;
+}
+
 __attribute__((constructor)) static void
 syscall_init(void)
 {
@@ -145,6 +158,8 @@ syscall_init(void)
     _(176, call_getuid);
     _(177, call_getuid);
     _(214, call_brk);
+    _(215, call_munmap);
+    _(222, call_mmap);
     _(291, call_statx);
 #undef _
 }

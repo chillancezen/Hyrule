@@ -128,6 +128,26 @@ heap_init(struct virtual_machine * vm, uint32_t proposed_prog_break)
     ASSERT(vm->vma_heap);
 }
 
+void
+mmap_setup(struct virtual_machine * vm, uint32_t addr_low, uint32_t len,
+           uint32_t flags, void * host_base)
+{
+    if (!host_base) {
+        host_base = preallocate_physical_memory(len);
+    }
+    struct pm_region_operation pmr = {
+        .addr_low = addr_low,
+        .addr_high = addr_low + len,
+        .flags = flags,
+        .pmr_read = vma_generic_read,
+        .pmr_write = vma_generic_write,
+        .pmr_direct = vma_generic_direct,
+        .host_base = host_base,
+    };
+    sprintf(pmr.pmr_desc, "mmap[%08x-%08x].RW", pmr.addr_low, pmr.addr_high);
+    register_pm_region_operation(vm, &pmr);
+}
+
 static void
 program_init(struct virtual_machine * vm, const char * app_path)
 {

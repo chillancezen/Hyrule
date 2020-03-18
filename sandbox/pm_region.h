@@ -39,7 +39,14 @@ struct pm_region_operation {
 struct virtual_machine;
 
 int
-is_vma_eligable(struct virtual_machine * vm, struct pm_region_operation * vma);
+is_vma_eligible(struct virtual_machine * vm, struct pm_region_operation * vma);
+
+int
+is_range_eligible(struct virtual_machine * vm, uint32_t addr_low,
+                  uint32_t addr_high);
+
+uint32_t
+search_free_mmap_region(struct virtual_machine * vm, uint32_t size);
 
 void
 register_pm_region_operation(struct virtual_machine * vm, const struct pm_region_operation * pro);

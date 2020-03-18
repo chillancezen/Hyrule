@@ -40,4 +40,8 @@ do_writev(struct hart * hartptr, uint32_t fd,
 uint32_t
 do_write(struct hart * hartptr, uint32_t fd, void * buf, uint32_t nr_write);
 
+uint32_t
+do_mmap(struct hart* hartptr, uint32_t proposal_addr, uint32_t len,
+        uint32_t prot, uint32_t flags, uint32_t fd, uint32_t offset);
+
 #endif

@@ -6,6 +6,7 @@
 #include <log.h>
 #include <vm.h>
 #include <uaccess.h>
+#include <errno.h>
 
 static sys_handler handlers[NR_SYSCALL_LINUX];
 
@@ -70,10 +71,60 @@ call_uname(struct hart * hartptr, uint32_t utsname_addr)
     void * utsname = user_world_pointer(hartptr, utsname_addr);
     strcpy(utsname + 0 * 65, "ZeldaLinux"); // sysname
     strcpy(utsname + 1 * 65, "hyrule"); // nodename
-    strcpy(utsname + 2 * 65, "v0.0.1"); //release
-    strcpy(utsname + 3 * 65, "native build"); //version
-    strcpy(utsname + 4 * 65, "riscv32"); //version
-    strcpy(utsname + 5 * 65, "castle"); //version
+    strcpy(utsname + 2 * 65, "5.4.0"); //release. XXX: DON'T SET IT TOO LOW, OR GLIBC PANICS
+    strcpy(utsname + 3 * 65, "v2020.03"); //version
+    strcpy(utsname + 4 * 65, "riscv32"); //machine
+    strcpy(utsname + 5 * 65, "castle"); //domain
+    return 0;
+}
+
+static uint32_t
+call_openat(struct hart * hartptr, uint32_t dirfd, uint32_t pathaddr,
+            uint32_t flags, uint32_t mode)
+{
+    char * path = user_world_pointer(hartptr, pathaddr);
+    return do_openat(hartptr, dirfd, path, flags, mode);
+}
+
+static uint32_t
+call_writev(struct hart * hartptr, uint32_t fd, uint32_t iov_addr,
+            uint32_t iovcnt)
+{
+    struct iovec32 * iov_base = user_world_pointer(hartptr, iov_addr);
+    return do_writev(hartptr, fd, iov_base, iovcnt);
+}
+
+static uint32_t
+generic_callback_nosys(struct hart * hartptr)
+{
+    return -ENOSYS;
+}
+
+static uint32_t
+call_statx(struct hart * hartptr, uint32_t dirfd, uint32_t pathname_addr,
+           uint32_t flags, uint32_t mask, uint32_t statxbuf_addr)
+{
+    //char * pathname = user_world_pointer(hartptr, pathname_addr);
+    //printf("%s\n", pathname);
+    //__not_reach();
+    return 0;
+}
+
+
+static uint32_t
+call_write(struct hart * hartptr, uint32_t fd, uint32_t buf_addr,
+           uint32_t nr_to_write)
+{
+    void * buf = user_world_pointer(hartptr, buf_addr);
+    return do_write(hartptr, fd, buf, nr_to_write);
+}
+
+static uint32_t
+call_exit(struct hart * hartptr, uint32_t status)
+{
+    // FIXME: a lot of work to do.
+    exit(status);
+    __not_reach();
     return 0;
 }
 
@@ -83,12 +134,17 @@ syscall_init(void)
     memset(handlers, 0x0, sizeof(handlers));
 #define _(num, func)                                                           \
     handlers[num] = (sys_handler)func
-   
+    _(56, call_openat);
+    _(64, call_write);
+    _(66, call_writev);
+    _(78, generic_callback_nosys);
+    _(94, call_exit);
     _(160, call_uname);
     _(174, call_getuid);
     _(175, call_getuid);
     _(176, call_getuid);
     _(177, call_getuid);
     _(214, call_brk);
+    _(291, call_statx);
 #undef _
 }

@@ -13,9 +13,26 @@
 #include <ini.h>
 #include <app.h>
 
+static void
+log_init(void)
+{
+    int verbosity = 5;
+    char * verbosity_string = getenv("VERBOSITY");
+    if (verbosity_string) {
+        verbosity = atoi(verbosity_string);
+        if (verbosity > 5) {
+            // FATAL message must be displayed.
+            verbosity = 5;
+        }
+    }
+    log_set_level(verbosity);
+}
+
 int
 main(int argc, char ** argv)
 {
+    log_init();
+        
     if (argc <= 1) {
         log_fatal("please specify the application host file path\n");
         exit(1);
@@ -25,7 +42,7 @@ main(int argc, char ** argv)
         NULL
     };
     application_sandbox_init(&sandbox_vm, argv[1], argv + 1, envp);
-    //add_breakpoint(0x28a38);
+    //add_breakpoint(0x26c1c);
     //add_breakpoint(0x104e0);
     //add_breakpoint(0x104e4);
     //add_breakpoint(0x104e8);

@@ -6,6 +6,7 @@
 #include <util.h>
 #include <elf.h>
 #include <uaccess.h>
+#include <vfs.h>
 
 static void
 cpu_init(struct virtual_machine * vm)
@@ -269,5 +270,9 @@ application_sandbox_init(struct virtual_machine * vm, const char * app_path,
     cpu_init(vm);
     program_init(vm, app_path);
     env_setup(vm, argv, envp);
+
+    // FIXME: make it configurable
+    vm->root = "/root/workspace/Zelda.RISCV.Emulator/root";
+    vfs_init(vm);
 }
 

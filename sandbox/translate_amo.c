@@ -60,7 +60,7 @@ lr_slowpath(struct hart * hartptr, uint8_t rs1_index, uint8_t rs2_index,
     reservations[next_pointer].valid = 1;
     reservations[next_pointer].hartid = hartptr->hart_id;
     next_pointer = (next_pointer + 1) % MAX_RESERVATION_ITEMS;
-    log_trace("lr.w address reservation:0x%08x\n", rs1);
+    //log_trace("lr.w address reservation:0x%08x\n", rs1);
 }
 
 static void

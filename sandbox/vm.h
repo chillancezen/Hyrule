@@ -11,8 +11,10 @@
 #include <fdt.h>
 #include <ini.h>
 #include <pm_region.h>
+#include <vfs.h>
 
 #define MAX_VMA_NR  128
+#define MAX_FILES_NR   128
 
 struct virtual_machine {
 
@@ -41,6 +43,12 @@ struct virtual_machine {
     struct pm_region_operation  pmr_ops[MAX_VMA_NR];
     struct pm_region_operation * vma_heap;
     struct pm_region_operation * vma_stack;
+
+    // files operation
+    struct file files[MAX_FILES_NR];
+
+    char * root;
+    char cwd[128];
 };
 
 __attribute__((always_inline))

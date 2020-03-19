@@ -138,7 +138,7 @@ call_mmap(struct hart * hartptr, uint32_t proposal_addr, uint32_t len,
 static uint32_t
 call_munmap(struct hart * hartptr, uint32_t addr, uint32_t len)
 {
-    return 0;
+    return do_munmap(hartptr, addr, len);
 }
 
 __attribute__((constructor)) static void

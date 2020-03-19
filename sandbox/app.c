@@ -80,6 +80,13 @@ vma_generic_write(uint64_t addr, int access_size, uint64_t value, struct hart * 
     }
 }
 
+void
+vma_generic_reclaim(void * opaque, struct hart * hartptr,
+                    struct pm_region_operation * pmr)
+{
+    free(pmr->host_base);
+}
+
 #define DEFAULT_STACK_SIZE  (1024 * 1024 * 8)
 #define DEFAULT_STACK_CELIING 0xE0000000
 
@@ -96,7 +103,9 @@ stack_init(struct virtual_machine * vm)
         .pmr_read = vma_generic_read,
         .pmr_write = vma_generic_write,
         .pmr_direct = vma_generic_direct,
+        .pmr_reclaim = vma_generic_reclaim,
         .host_base = host_stack_base,
+        .opaque = NULL,
     };
     sprintf(pmr.pmr_desc, "stack[%08x-%08x].RW", pmr.addr_low, pmr.addr_high);
     hart_by_id(vm, 0)->registers.sp = DEFAULT_STACK_CELIING - 0x100;
@@ -119,7 +128,9 @@ heap_init(struct virtual_machine * vm, uint32_t proposed_prog_break)
         .pmr_read = vma_generic_read,
         .pmr_write = vma_generic_write,
         .pmr_direct = vma_generic_direct,
+        .pmr_reclaim = vma_generic_reclaim,
         .host_base = NULL,
+        .opaque = NULL,
     };
     sprintf(pmr.pmr_desc, "heap[%08x-%08x].RW", pmr.addr_low, pmr.addr_high);
     register_pm_region_operation(vm, &pmr);
@@ -142,7 +153,9 @@ mmap_setup(struct virtual_machine * vm, uint32_t addr_low, uint32_t len,
         .pmr_read = vma_generic_read,
         .pmr_write = vma_generic_write,
         .pmr_direct = vma_generic_direct,
+        .pmr_reclaim = vma_generic_reclaim,
         .host_base = host_base,
+        .opaque = NULL,
     };
     sprintf(pmr.pmr_desc, "mmap[%08x-%08x].RW", pmr.addr_low, pmr.addr_high);
     register_pm_region_operation(vm, &pmr);
@@ -176,7 +189,9 @@ program_init(struct virtual_machine * vm, const char * app_path)
             .pmr_read = vma_generic_read,
             .pmr_write = vma_generic_write,
             .pmr_direct = vma_generic_direct,
+            .pmr_reclaim = vma_generic_reclaim,
             .host_base = host_base,
+            .opaque = NULL,
         };
         sprintf(pmr.pmr_desc, "elf[%08x-%08x].%s%s%s", pmr.addr_low, pmr.addr_high,
                 prog_hdr.p_flags & PROGRAM_READ ? "R" : "",

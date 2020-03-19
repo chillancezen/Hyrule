@@ -44,4 +44,10 @@ uint32_t
 do_mmap(struct hart* hartptr, uint32_t proposal_addr, uint32_t len,
         uint32_t prot, uint32_t flags, uint32_t fd, uint32_t offset);
 
+uint32_t
+do_munmap(struct hart * hartptr, uint32_t addr, uint32_t len);
+
+void
+dump_file_descriptors(struct virtual_machine * vm);
+
 #endif

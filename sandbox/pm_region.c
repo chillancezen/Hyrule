@@ -137,3 +137,21 @@ register_pm_region_operation(struct virtual_machine * vm, const struct pm_region
         ASSERT(pmr && is_vma_eligible(vm, _pmr))
     }
 }
+
+void
+unregister_pm_region(struct virtual_machine * vm, struct pm_region_operation * pmr)
+{
+    int idx = 0;
+    for (idx = 0; idx < vm->nr_pmr_ops; idx++) {
+        if (&vm->pmr_ops[idx] == pmr) {
+            break;
+        }
+    }
+    ASSERT(idx < vm->nr_pmr_ops);
+    
+    for (; idx < (vm->nr_pmr_ops - 1); idx++) {
+        memcpy(&vm->pmr_ops[idx], &vm->pmr_ops[idx + 1], sizeof(struct pm_region_operation));
+    }
+    vm->nr_pmr_ops--;
+}
+

@@ -177,6 +177,21 @@ backtrace_call(struct hart * hartptr, int argc, char *argv[])
 static int
 debug_help(struct hart * hartptr, int argc, char *argv[]);
 
+static int
+dump_vma_call(struct hart * hartptr, int argc, char *argv[])
+{
+    dump_memory_regions(hartptr->vmptr);
+    return ACTION_CONTINUE;
+}
+
+#include <vfs.h>
+static int
+dump_fd_call(struct hart * hartptr, int argc, char *argv[])
+{
+    dump_file_descriptors(hartptr->vmptr);
+    return ACTION_CONTINUE;
+}
+
 static struct cmd_registery_item cmds_items[] = {
     {
         .cmd_prefixs = {"info", "registers", NULL},
@@ -217,6 +232,16 @@ static struct cmd_registery_item cmds_items[] = {
         .cmd_prefixs = {"backtrace", NULL},
         .func = backtrace_call,
         .desc = "dump the calling stack..."
+    },
+    {
+        .cmd_prefixs = {"dump", "vma", NULL},
+        .func = dump_vma_call,
+        .desc = "dump the vm areas(APPLICATION ONLY)"
+    },
+    {
+        .cmd_prefixs = {"dump", "fd", NULL},
+        .func = dump_fd_call,
+        .desc = "dump open file descriptors(APPLICATION ONLY)"
     },
     {
         .cmd_prefixs = {"help", NULL},

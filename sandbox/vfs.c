@@ -257,6 +257,42 @@ do_mmap(struct hart* hartptr, uint32_t proposal_addr, uint32_t len,
     }
     return 0;
 }
+
+
+uint32_t
+do_munmap(struct hart * hartptr, uint32_t addr, uint32_t len)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    struct pm_region_operation * pmr = search_pm_region_callback(vm, addr);
+    if (!pmr) {
+        return -EINVAL;
+    }
+    uint32_t region_len = pmr->addr_high - pmr->addr_low;
+    if (region_len != len) {
+        return -EINVAL;
+    }
+    
+    if (pmr->pmr_reclaim) {
+        pmr->pmr_reclaim(pmr->opaque, hartptr, pmr);
+    }
+    unregister_pm_region(vm, pmr);
+    return 0;
+}
+
+
+void
+dump_file_descriptors(struct virtual_machine * vm)
+{
+    log_info("dump file descriptors\n");
+    int idx = 0;
+    for (idx = 0; idx < MAX_FILES_NR; idx++) {
+        if (!vm->files[idx].valid) {
+            continue;
+        }
+        log_info("\tfd:%-2d filepath:%s\n", vm->files[idx].fd, vm->files[idx].guest_cpath);
+    }
+}
+
 void
 vfs_init(struct virtual_machine * vm)
 {

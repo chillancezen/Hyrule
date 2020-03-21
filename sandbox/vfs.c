@@ -12,6 +12,9 @@
 #include <sys/mman.h>
 #include <app.h>
 #include <elf.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #define MAX_PATH 512
  
@@ -144,7 +147,7 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
         return -ENOMEM;
     }
     int host_fd = open((char *)host_cpath, flags, mode);
-    if (new_file->host_fd < 0) {
+    if (host_fd < 0) {
         deallocate_file_descriptor(vm, new_file);
         return host_fd;
     }
@@ -157,6 +160,106 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
     new_file->guest_cpath = strdup((const char *)guest_abs_cpath);
 
     return new_file->fd;
+}
+
+uint32_t
+do_close(struct hart * hartptr, uint32_t fd)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    if (fd > MAX_FILES_NR || !vm->files[fd].valid ||
+        vm->files[fd].closed) {
+        return -EBADF;
+    }
+    uint32_t rc = close(vm->files[fd].host_fd);
+
+    vm->files[fd].closed = 1;
+    vm->files[fd].ref_count -= 1;
+   
+    if (vm->files[fd].ref_count <= 0) {
+        deallocate_file_descriptor(vm, &vm->files[fd]);   
+    }
+    return rc;
+}
+
+struct statx_timestamp {
+    uint64_t tv_sec;    /* Seconds since the Epoch (UNIX time) */
+    uint32_t tv_nsec;   /* Nanoseconds since tv_sec */
+}__attribute__((packed));
+
+struct statx {
+    uint32_t stx_mask;     /* Mask of bits indicating
+                filled fields */
+    uint32_t stx_blksize;     /* Block size for filesystem I/O */
+    uint64_t stx_attributes;  /* Extra file attribute indicators */
+    uint32_t stx_nlink;       /* Number of hard links */
+    uint32_t stx_uid;     /* User ID of owner */
+    uint32_t stx_gid;     /* Group ID of owner */
+    uint16_t stx_mode;     /* File type and mode */
+    uint64_t stx_ino;     /* Inode number */
+    uint64_t stx_size;     /* Total size in bytes */
+    uint64_t stx_blocks;      /* Number of 512B blocks allocated */
+    uint64_t stx_attributes_mask;
+                 /* Mask to show what's supported
+                in stx_attributes */
+
+    /* The following fields are file timestamps */
+    struct statx_timestamp stx_atime;  /* Last access */
+    struct statx_timestamp stx_btime;  /* Creation */
+    struct statx_timestamp stx_ctime;  /* Last status change */
+    struct statx_timestamp stx_mtime;  /* Last modification */
+
+    /* If this file represents a device, then the next two
+     fields contain the ID of the device */
+    uint32_t stx_rdev_major;  /* Major ID */
+    uint32_t stx_rdev_minor;  /* Minor ID */
+
+    /* The next two fields contain the ID of the device
+     containing the filesystem where the file resides */
+    uint32_t stx_dev_major;   /* Major ID */
+    uint32_t stx_dev_minor;   /* Minor ID */
+}__attribute__((packed));
+
+
+uint32_t
+do_statx(struct hart * hartptr, uint32_t dirfd, char * pathname, uint32_t flag,
+         uint32_t mask, void * statxbuf)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    const char * ptr = pathname;
+    for(;*ptr && *ptr == ' '; ptr++);
+    int is_relative_path = *ptr != '/';
+    const char * relative_dir_path = "";
+
+    uint8_t guest_cpath[MAX_PATH];
+    ASSERT(!canonicalize_path_name(guest_cpath, (const uint8_t *)pathname));
+    if (is_relative_path) {
+        if ((int32_t)dirfd == AT_FDCWD) {
+            relative_dir_path = vm->cwd;
+        } else {
+            // FIXME
+        }
+    }
+    uint8_t host_path[MAX_PATH];
+    uint8_t host_cpath[MAX_PATH];
+    sprintf((char *)host_path, "%s/%s/%s", vm->root, relative_dir_path, guest_cpath);
+    ASSERT(!canonicalize_path_name(host_cpath, host_path));
+
+    struct stat statbuf;
+    int rc = stat((const char *)host_cpath, &statbuf);
+    if (!rc) {
+        return rc;
+    }
+    struct statx * statxptr = statxbuf;
+    statxptr->stx_ino = statbuf.st_ino;
+    statxptr->stx_mode = statbuf.st_mode;
+    statxptr->stx_nlink = statbuf.st_nlink;
+    statxptr->stx_uid = statbuf.st_uid;
+    statxptr->stx_gid = statbuf.st_gid;
+    statxptr->stx_size = statbuf.st_size;
+    statxptr->stx_blksize = statbuf.st_blksize;
+    statxptr->stx_blocks = statbuf.st_blocks;
+    memset(statxptr, 0x1, sizeof(struct statx));
+    return rc;
 }
 
 uint32_t
@@ -191,9 +294,36 @@ do_write(struct hart * hartptr, uint32_t fd, void * buf, uint32_t nr_write)
     struct virtual_machine * vm = hartptr->vmptr;
     if (fd > MAX_FILES_NR || !vm->files[fd].valid ||
         vm->files[fd].closed) {
-        return -EINVAL;
+        return -EBADF;
     }
     return write(vm->files[fd].host_fd, buf, nr_write);
+}
+
+uint32_t
+do_read(struct hart * hartptr, uint32_t fd, void * buf, uint32_t nr_read)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    if (fd > MAX_FILES_NR || !vm->files[fd].valid ||
+        vm->files[fd].closed) {
+        return -EBADF;
+    }
+    return read(vm->files[fd].host_fd, buf, nr_read);
+}
+
+uint32_t
+do_ioctl(struct hart * hartptr, uint32_t fd, uint32_t request,
+         uint32_t argp_addr)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    if (fd > MAX_FILES_NR || !vm->files[fd].valid ||
+        vm->files[fd].closed) {
+        return -EBADF;
+    }
+    void * argp = NULL;
+    if (user_accessible(hartptr, argp_addr)) {
+        argp = user_world_pointer(hartptr, argp_addr);
+    }
+    return ioctl(vm->files[fd].host_fd, request, argp);
 }
 
 #define PAGE_ROUNDUP(addr) (((addr) & 4095) ? (((addr) & ~4095) + 4096) : (addr))

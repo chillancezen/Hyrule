@@ -8,9 +8,9 @@ struct virtual_machine;
 struct hart;
 
 struct file {
-    uint32_t fd;
-    uint32_t host_fd;
-    uint32_t external_fd;
+    int32_t fd;
+    int32_t host_fd;
+    int32_t external_fd;
     uint32_t ref_count;
 
     uint32_t valid:1;
@@ -34,6 +34,13 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
           uint32_t flags, uint32_t mode);
 
 uint32_t
+do_close(struct hart * hartptr, uint32_t fd);
+
+uint32_t
+do_statx(struct hart * hartptr, uint32_t dirfd, char * pathname, uint32_t flag,
+         uint32_t mask, void * statxbuf);
+
+uint32_t
 do_writev(struct hart * hartptr, uint32_t fd,
           struct iovec32 * guest_iov, uint32_t iovcnt);
 
@@ -46,6 +53,13 @@ do_mmap(struct hart* hartptr, uint32_t proposal_addr, uint32_t len,
 
 uint32_t
 do_munmap(struct hart * hartptr, uint32_t addr, uint32_t len);
+
+uint32_t
+do_ioctl(struct hart * hartptr, uint32_t fd, uint32_t request,
+         uint32_t argp_addr);
+
+uint32_t
+do_read(struct hart * hartptr, uint32_t fd, void * buf, uint32_t nr_read);
 
 void
 dump_file_descriptors(struct virtual_machine * vm);

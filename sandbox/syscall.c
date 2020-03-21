@@ -7,6 +7,8 @@
 #include <vm.h>
 #include <uaccess.h>
 #include <errno.h>
+#include <sys/time.h>
+#include <sysnet.h>
 
 static sys_handler handlers[NR_SYSCALL_LINUX];
 
@@ -104,10 +106,9 @@ static uint32_t
 call_statx(struct hart * hartptr, uint32_t dirfd, uint32_t pathname_addr,
            uint32_t flags, uint32_t mask, uint32_t statxbuf_addr)
 {
-    //char * pathname = user_world_pointer(hartptr, pathname_addr);
-    //printf("%s\n", pathname);
-    //__not_reach();
-    return 0;
+    char * pathname = user_world_pointer(hartptr, pathname_addr);
+    void * statxbuf = user_world_pointer(hartptr, statxbuf_addr);
+    return do_statx(hartptr, dirfd, pathname, flags, mask, statxbuf);
 }
 
 
@@ -141,22 +142,72 @@ call_munmap(struct hart * hartptr, uint32_t addr, uint32_t len)
     return do_munmap(hartptr, addr, len);
 }
 
+static uint32_t
+call_gettimeofday(struct hart * hartptr, uint32_t tv_addr, uint32_t tz_addr)
+{
+    void * tv = tv_addr ? user_world_pointer(hartptr, tv_addr) : NULL; 
+    void * tz = tz_addr ? user_world_pointer(hartptr, tz_addr) : NULL;
+    return gettimeofday(tv, tz);
+}
+
+static uint32_t
+call_ioctl(struct hart * hartptr, uint32_t fd, uint32_t request,
+           uint32_t argp_addr)
+{
+    return do_ioctl(hartptr, fd, request, argp_addr);
+}
+
+static uint32_t
+call_read(struct hart * hartptr, uint32_t fd, uint32_t buf_addr, uint32_t count)
+{
+    void * buf = user_world_pointer(hartptr, buf_addr);
+    return do_read(hartptr, fd, buf, count);
+}
+
+static uint32_t
+call_close(struct hart * hartptr, int fd)
+{
+    return do_close(hartptr, fd);
+}
+
+static uint32_t
+call_socket(struct hart * hartptr, uint32_t socket_family,
+            uint32_t socket_type, uint32_t protocal)
+{
+    return do_socket(hartptr, socket_family, socket_type, protocal);
+}
+
+#include <time.h>
+static uint32_t
+call_clock_gettime(struct hart * hartptr, uint32_t clk_id,
+                   uint32_t timespec_addr)
+{
+    void * timespec_ptr = user_world_pointer(hartptr, timespec_addr);
+    return clock_gettime(clk_id, timespec_ptr);
+}
+
 __attribute__((constructor)) static void
 syscall_init(void)
 {
     memset(handlers, 0x0, sizeof(handlers));
 #define _(num, func)                                                           \
     handlers[num] = (sys_handler)func
+    _(29, call_ioctl);
     _(56, call_openat);
+    _(57, call_close);
+    _(63, call_read);
     _(64, call_write);
     _(66, call_writev);
     _(78, generic_callback_nosys);
     _(94, call_exit);
+    _(113, call_clock_gettime);
     _(160, call_uname);
+    _(169, call_gettimeofday);
     _(174, call_getuid);
     _(175, call_getuid);
     _(176, call_getuid);
     _(177, call_getuid);
+    _(198, call_socket);
     _(214, call_brk);
     _(215, call_munmap);
     _(222, call_mmap);

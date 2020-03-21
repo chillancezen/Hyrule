@@ -7,6 +7,7 @@
 #include <elf.h>
 #include <uaccess.h>
 #include <vfs.h>
+#include <unistd.h>
 
 static void
 cpu_init(struct virtual_machine * vm)

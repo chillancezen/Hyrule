@@ -308,7 +308,9 @@ application_sandbox_init(struct virtual_machine * vm, const char * app_path,
     env_setup(vm, argv, envp);
 
     // FIXME: make it configurable
-    vm->root = "/root/workspace/Zelda.RISCV.Emulator/root";
+    vm->root = "/home/linky/Hyrule/root";
+    //vm->root = "/root/workspace/Zelda.RISCV.Emulator/root";
+
     vfs_init(vm);
 }
 

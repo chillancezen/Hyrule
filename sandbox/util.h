@@ -77,6 +77,17 @@ sign_extend32(uint32_t data, int sign_bit)
     #define ANSI_COLOR_RESET   " "
 #endif
 
+static inline char *
+append_string(char * current, const char * substring)
+{
+    int idx = 0;
+    for (idx = 0; substring[idx]; idx++) {
+        current[idx] = substring[idx];
+    }
+    current[idx] = '\0';
+    return current + idx;
+}
+
 int
 preload_binary_image(void * addr, int64_t length, const char * image_path);
 

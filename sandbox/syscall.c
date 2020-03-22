@@ -96,6 +96,7 @@ call_writev(struct hart * hartptr, uint32_t fd, uint32_t iov_addr,
     return do_writev(hartptr, fd, iov_base, iovcnt);
 }
 
+__attribute__((unused))
 static uint32_t
 generic_callback_nosys(struct hart * hartptr)
 {
@@ -186,6 +187,22 @@ call_clock_gettime(struct hart * hartptr, uint32_t clk_id,
     return clock_gettime(clk_id, timespec_ptr);
 }
 
+static uint32_t
+call_getdents64(struct hart * hartptr, uint32_t fd, uint32_t dirp_addr,
+                uint32_t count)
+{
+   return do_getdents64(hartptr, fd, dirp_addr, count); 
+}
+
+static uint32_t
+call_readlinkat(struct hart * hartptr, uint32_t dirfd, uint32_t pathname_addr,
+                uint32_t buff_addr, uint32_t buf_size)
+{
+    char * pathname = user_world_pointer(hartptr, pathname_addr);
+    void * buff = user_world_pointer(hartptr, buff_addr);
+    return do_readlinkat(hartptr, dirfd, pathname, buff, buf_size);
+}
+
 __attribute__((constructor)) static void
 syscall_init(void)
 {
@@ -195,10 +212,11 @@ syscall_init(void)
     _(29, call_ioctl);
     _(56, call_openat);
     _(57, call_close);
+    _(61, call_getdents64);
     _(63, call_read);
     _(64, call_write);
     _(66, call_writev);
-    _(78, generic_callback_nosys);
+    _(78, call_readlinkat);
     _(94, call_exit);
     _(113, call_clock_gettime);
     _(160, call_uname);

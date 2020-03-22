@@ -15,6 +15,8 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/types.h>
+#include <sys/syscall.h>
 
 #define MAX_PATH 512
  
@@ -120,7 +122,7 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
 {
     struct virtual_machine * vm = hartptr->vmptr;
     // judge whether a relative path is given.
-    const char * ptr = guest_path;
+    char * ptr = (char *)guest_path;
     for(;*ptr && *ptr == ' '; ptr++);
     int is_relative_path = *ptr != '/';
     const char * relative_dir_path = "";
@@ -138,7 +140,10 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
     // comprise host absolute file path.
     uint8_t host_path[MAX_PATH];
     uint8_t host_cpath[MAX_PATH];
-    sprintf((char *)host_path, "%s/%s/%s", vm->root, relative_dir_path, guest_cpath);
+    ptr = (char *)host_path;
+    ptr = append_string(ptr, (const char *)vm->root);
+    ptr = append_string(ptr, (const char *)relative_dir_path);
+    ptr = append_string(ptr, (const char *)guest_cpath);
     ASSERT(!canonicalize_path_name(host_cpath, host_path));
 
     // setup an unoccupied file descriptor
@@ -155,7 +160,8 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
     new_file->ref_count += 1;
     uint8_t guest_abs_path[MAX_PATH];
     uint8_t guest_abs_cpath[MAX_PATH];
-    sprintf((char *)guest_abs_path, "%s/%s", relative_dir_path, guest_cpath);
+    ptr = append_string((char *)guest_abs_path, (const char *)relative_dir_path);
+    ptr = append_string(ptr, (const char *)guest_cpath);
     ASSERT(!canonicalize_path_name(guest_abs_cpath, guest_abs_path));
     new_file->guest_cpath = strdup((const char *)guest_abs_cpath);
 
@@ -225,7 +231,7 @@ do_statx(struct hart * hartptr, uint32_t dirfd, char * pathname, uint32_t flag,
          uint32_t mask, void * statxbuf)
 {
     struct virtual_machine * vm = hartptr->vmptr;
-    const char * ptr = pathname;
+    char * ptr = pathname;
     for(;*ptr && *ptr == ' '; ptr++);
     int is_relative_path = *ptr != '/';
     const char * relative_dir_path = "";
@@ -241,27 +247,48 @@ do_statx(struct hart * hartptr, uint32_t dirfd, char * pathname, uint32_t flag,
     }
     uint8_t host_path[MAX_PATH];
     uint8_t host_cpath[MAX_PATH];
-    sprintf((char *)host_path, "%s/%s/%s", vm->root, relative_dir_path, guest_cpath);
+    ptr = (char *)host_path;
+    ptr = append_string(ptr, (const char *)vm->root);
+    ptr = append_string(ptr, (const char *)relative_dir_path);
+    ptr = append_string(ptr, (const char *)guest_cpath);
     ASSERT(!canonicalize_path_name(host_cpath, host_path));
 
-    struct stat statbuf;
-    int rc = stat((const char *)host_cpath, &statbuf);
-    if (!rc) {
-        return rc;
-    }
-    struct statx * statxptr = statxbuf;
-    statxptr->stx_ino = statbuf.st_ino;
-    statxptr->stx_mode = statbuf.st_mode;
-    statxptr->stx_nlink = statbuf.st_nlink;
-    statxptr->stx_uid = statbuf.st_uid;
-    statxptr->stx_gid = statbuf.st_gid;
-    statxptr->stx_size = statbuf.st_size;
-    statxptr->stx_blksize = statbuf.st_blksize;
-    statxptr->stx_blocks = statbuf.st_blocks;
-    memset(statxptr, 0x1, sizeof(struct statx));
+    // XXX: with gcc 4.8, I can't find statx system call warpper in GLIBC,
+    // so I use direct syscall.
+    int rc = syscall(__NR_statx, AT_FDCWD, host_cpath, flag, mask, statxbuf);
     return rc;
 }
 
+uint32_t
+do_readlinkat(struct hart * hartptr, uint32_t dirfd, const char * pathname,
+              void * buf, uint32_t buf_size)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    char * ptr = (char *)pathname;
+    for(;*ptr && *ptr == ' '; ptr++);
+    int is_relative_path = *ptr != '/';
+    const char * relative_dir_path = "";
+
+    uint8_t guest_cpath[MAX_PATH];
+    ASSERT(!canonicalize_path_name(guest_cpath, (const uint8_t *)pathname));
+    if (is_relative_path) {
+        if ((int32_t)dirfd == AT_FDCWD) {
+            relative_dir_path = vm->cwd;
+        } else {
+            // FIXME
+        }
+    }
+
+    uint8_t host_path[MAX_PATH];
+    uint8_t host_cpath[MAX_PATH];
+    ptr = (char *)host_path;
+    ptr = append_string(ptr, (const char *)vm->root);
+    ptr = append_string(ptr, (const char *)relative_dir_path);
+    ptr = append_string(ptr, (const char *)guest_cpath);
+    ASSERT(!canonicalize_path_name(host_cpath, host_path));
+
+    return readlinkat(AT_FDCWD, (const char *)host_cpath, buf, buf_size);
+}
 uint32_t
 do_writev(struct hart * hartptr, uint32_t fd,
           struct iovec32 * guest_iov, uint32_t iovcnt)
@@ -326,6 +353,18 @@ do_ioctl(struct hart * hartptr, uint32_t fd, uint32_t request,
     return ioctl(vm->files[fd].host_fd, request, argp);
 }
 
+uint32_t
+do_getdents64(struct hart * hartptr, uint32_t fd, uint32_t dirp_addr,
+              uint32_t count)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    if (fd > MAX_FILES_NR || !vm->files[fd].valid ||
+        vm->files[fd].closed) {
+        return -EBADF;
+    }
+    void * dirp = user_world_pointer(hartptr, dirp_addr);
+    return syscall(__NR_getdents64, vm->files[fd].host_fd, dirp, count);
+}
 #define PAGE_ROUNDUP(addr) (((addr) & 4095) ? (((addr) & ~4095) + 4096) : (addr))
 
 static uint32_t

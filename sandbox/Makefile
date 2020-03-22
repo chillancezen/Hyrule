@@ -12,19 +12,20 @@ CCPARAMS += -include config.h
 
 GUEST_ELF = vmx
 GUEST_MAP = vmx.map
+GCC = gcc-4.8
 
 %.o: %.S
 	@echo "[AS] $<"
-	@gcc $(CCPARAMS) -I. -o $@ -c $<
+	@$(GCC) $(CCPARAMS) -I. -o $@ -c $<
 
 %.o: %.c
 	@echo "[CC] $<"
-	@gcc $(CCPARAMS) -I. -o $@ -c $<
+	@$(GCC) $(CCPARAMS) -I. -o $@ -c $<
 
 
 $(GUEST_ELF):$(AS_OBJS) $(C_OBJS)
 	@echo "[LD] $@"
-	@gcc $(LDPARAMS) -Wl,-Map=$(GUEST_MAP) -lm -o $(GUEST_ELF) $(AS_OBJS) $(C_OBJS)
+	@$(GCC) $(LDPARAMS) -Wl,-Map=$(GUEST_MAP) -lm -o $(GUEST_ELF) $(AS_OBJS) $(C_OBJS)
 
 clean:
 	@echo "[Cleaning] $(GUEST_ELF)"

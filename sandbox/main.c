@@ -42,7 +42,7 @@ main(int argc, char ** argv)
         NULL
     };
     application_sandbox_init(&sandbox_vm, argv[1], argv + 1, envp);
-    //add_breakpoint(0x61160);
+    add_breakpoint(0x60b38);
     //add_breakpoint(0x159e6c);
     //add_breakpoint(0x155b00);
     //add_breakpoint(0x104e0);

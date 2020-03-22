@@ -61,6 +61,13 @@ do_ioctl(struct hart * hartptr, uint32_t fd, uint32_t request,
 uint32_t
 do_read(struct hart * hartptr, uint32_t fd, void * buf, uint32_t nr_read);
 
+uint32_t
+do_getdents64(struct hart * hartptr, uint32_t fd, uint32_t dirp_addr,
+              uint32_t count);
+uint32_t
+do_readlinkat(struct hart * hartptr, uint32_t dirfd, const char * pathname_addr,
+              void * buf, uint32_t buf_size);
+
 void
 dump_file_descriptors(struct virtual_machine * vm);
 

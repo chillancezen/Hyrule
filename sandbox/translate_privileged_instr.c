@@ -293,6 +293,10 @@ riscv_supervisor_level_instructions_translation_entry(struct prefetch_blob * blo
     } else {
         instruction_decoding_per_type(&dec, instruction, ENCODING_TYPE_I);
     }
+    if (!per_funct3_handlers[dec.funct3]) {
+        dump_hart(blob->opaque);
+        log_fatal("dec.funct3:0x%x\n", dec.funct3);
+    }
     ASSERT(per_funct3_handlers[dec.funct3]);
     per_funct3_handlers[dec.funct3](&dec, blob, instruction);
 }

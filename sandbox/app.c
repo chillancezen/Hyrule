@@ -8,6 +8,8 @@
 #include <uaccess.h>
 #include <vfs.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <tinyprintf.h>
 
 static void
 cpu_init(struct virtual_machine * vm)
@@ -158,7 +160,7 @@ mmap_setup(struct virtual_machine * vm, uint32_t addr_low, uint32_t len,
         .host_base = host_base,
         .opaque = NULL,
     };
-    sprintf(pmr.pmr_desc, "mmap[%08x-%08x].RW", pmr.addr_low, pmr.addr_high);
+    tfp_sprintf(pmr.pmr_desc, "mmap[%08x-%08x].RW", pmr.addr_low, pmr.addr_high);
     register_pm_region_operation(vm, &pmr);
 }
 
@@ -297,6 +299,18 @@ env_setup(struct virtual_machine * vm, char ** argv, char ** envp)
     #undef STACK_POS
 }
 
+
+static void
+app_root_init(struct virtual_machine * vm)
+{
+    char * root = getenv("ROOT");
+    if (!root) {
+        log_fatal("please sepcify environment variable: ROOT\n");
+        exit(-1);
+    }
+    vm->root = root;
+}
+
 void
 application_sandbox_init(struct virtual_machine * vm, const char * app_path,
                          char ** argv, char ** envp)
@@ -308,7 +322,8 @@ application_sandbox_init(struct virtual_machine * vm, const char * app_path,
     env_setup(vm, argv, envp);
 
     // FIXME: make it configurable
-    vm->root = "/home/linky/Hyrule/root";
+    app_root_init(vm);
+    //vm->root = "/home/linky/Hyrule/root";
     //vm->root = "/root/workspace/Zelda.RISCV.Emulator/root";
 
     vfs_init(vm);

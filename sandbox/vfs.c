@@ -17,7 +17,7 @@
 #include <sys/types.h>
 #include <sys/types.h>
 #include <sys/syscall.h>
-
+#include <sys/sendfile.h>
 #define MAX_PATH 512
  
 static int
@@ -33,7 +33,7 @@ canonicalize_path_name(uint8_t * dst, const uint8_t * src)
     int16_t index_stack[256];
     memset(index_stack, 0x0, sizeof(index_stack));
     for (idx = 0; idx < MAX_PATH; idx++) {
-        if (src[idx] != '/' && src[idx])
+        if (src[idx] != '/' && src[idx] && idx != 0)
             continue;
         if (word_start == -1 && src[idx]) {
             word_start = idx;
@@ -137,7 +137,7 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
             __not_reach();
         }
     }
-    // comprise host absolute file path.
+    // compose host absolute file path.
     uint8_t host_path[MAX_PATH];
     uint8_t host_cpath[MAX_PATH];
     ptr = (char *)host_path;
@@ -154,7 +154,7 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
     int host_fd = open((char *)host_cpath, flags, mode);
     if (host_fd < 0) {
         deallocate_file_descriptor(vm, new_file);
-        return host_fd;
+        return ERRNO(host_fd);
     }
     new_file->host_fd = host_fd;
     new_file->ref_count += 1;
@@ -165,6 +165,8 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
     ASSERT(!canonicalize_path_name(guest_abs_cpath, guest_abs_path));
     new_file->guest_cpath = strdup((const char *)guest_abs_cpath);
 
+    log_debug("openat: guest path:%s host path:%s fd\n", guest_path, host_cpath,
+              new_file->fd);
     return new_file->fd;
 }
 
@@ -184,7 +186,7 @@ do_close(struct hart * hartptr, uint32_t fd)
     if (vm->files[fd].ref_count <= 0) {
         deallocate_file_descriptor(vm, &vm->files[fd]);   
     }
-    return rc;
+    return ERRNO(rc);
 }
 
 struct statx_timestamp {
@@ -256,7 +258,7 @@ do_statx(struct hart * hartptr, uint32_t dirfd, char * pathname, uint32_t flag,
     // XXX: with gcc 4.8, I can't find statx system call warpper in GLIBC,
     // so I use direct syscall.
     int rc = syscall(__NR_statx, AT_FDCWD, host_cpath, flag, mask, statxbuf);
-    return rc;
+    return ERRNO(rc);
 }
 
 uint32_t
@@ -287,8 +289,9 @@ do_readlinkat(struct hart * hartptr, uint32_t dirfd, const char * pathname,
     ptr = append_string(ptr, (const char *)guest_cpath);
     ASSERT(!canonicalize_path_name(host_cpath, host_path));
 
-    return readlinkat(AT_FDCWD, (const char *)host_cpath, buf, buf_size);
+    return ERRNO(readlinkat(AT_FDCWD, (const char *)host_cpath, buf, buf_size));
 }
+
 uint32_t
 do_writev(struct hart * hartptr, uint32_t fd,
           struct iovec32 * guest_iov, uint32_t iovcnt)
@@ -312,7 +315,7 @@ do_writev(struct hart * hartptr, uint32_t fd,
     }
     uint32_t host_rc = writev(vm->files[fd].host_fd, host_vecbase, iovcnt);
     free(host_vecbase);
-    return host_rc;
+    return ERRNO(host_rc);
 }
 
 uint32_t
@@ -323,7 +326,7 @@ do_write(struct hart * hartptr, uint32_t fd, void * buf, uint32_t nr_write)
         vm->files[fd].closed) {
         return -EBADF;
     }
-    return write(vm->files[fd].host_fd, buf, nr_write);
+    return ERRNO(write(vm->files[fd].host_fd, buf, nr_write));
 }
 
 uint32_t
@@ -334,7 +337,7 @@ do_read(struct hart * hartptr, uint32_t fd, void * buf, uint32_t nr_read)
         vm->files[fd].closed) {
         return -EBADF;
     }
-    return read(vm->files[fd].host_fd, buf, nr_read);
+    return ERRNO(read(vm->files[fd].host_fd, buf, nr_read));
 }
 
 uint32_t
@@ -350,7 +353,7 @@ do_ioctl(struct hart * hartptr, uint32_t fd, uint32_t request,
     if (user_accessible(hartptr, argp_addr)) {
         argp = user_world_pointer(hartptr, argp_addr);
     }
-    return ioctl(vm->files[fd].host_fd, request, argp);
+    return ERRNO(ioctl(vm->files[fd].host_fd, request, argp));
 }
 
 uint32_t
@@ -365,6 +368,25 @@ do_getdents64(struct hart * hartptr, uint32_t fd, uint32_t dirp_addr,
     void * dirp = user_world_pointer(hartptr, dirp_addr);
     return syscall(__NR_getdents64, vm->files[fd].host_fd, dirp, count);
 }
+
+uint32_t
+do_sendfile(struct hart * hartptr, uint32_t out_fd, uint32_t fd,
+            void * offset, uint32_t count)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    if (fd > MAX_FILES_NR || !vm->files[fd].valid ||
+        vm->files[fd].closed) {
+        return -EBADF;
+    }
+
+    if (out_fd > MAX_FILES_NR || !vm->files[out_fd].valid ||
+        vm->files[out_fd].closed) {
+        return -EBADF;
+    }
+
+    return ERRNO(sendfile(vm->files[out_fd].host_fd, vm->files[fd].host_fd, offset, count));
+}
+
 #define PAGE_ROUNDUP(addr) (((addr) & 4095) ? (((addr) & ~4095) + 4096) : (addr))
 
 static uint32_t
@@ -448,6 +470,36 @@ do_munmap(struct hart * hartptr, uint32_t addr, uint32_t len)
     return 0;
 }
 
+uint32_t
+do_unlinkat(struct hart * hartptr, uint32_t dirfd,
+            const char * pathname, uint32_t flags)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    char * ptr = (char *)pathname;
+    for(;*ptr && *ptr == ' '; ptr++);
+    int is_relative_path = *ptr != '/';
+    const char * relative_dir_path = "";
+
+    uint8_t guest_cpath[MAX_PATH];
+    ASSERT(!canonicalize_path_name(guest_cpath, (const uint8_t *)pathname));
+    if (is_relative_path) {
+        if ((int32_t)dirfd == AT_FDCWD) {
+            relative_dir_path = vm->cwd;
+        } else {
+            // FIXME
+        }
+    }
+
+    uint8_t host_path[MAX_PATH];
+    uint8_t host_cpath[MAX_PATH];
+    ptr = (char *)host_path;
+    ptr = append_string(ptr, (const char *)vm->root);
+    ptr = append_string(ptr, (const char *)relative_dir_path);
+    ptr = append_string(ptr, (const char *)guest_cpath);
+    ASSERT(!canonicalize_path_name(host_cpath, host_path));
+
+    return ERRNO(unlinkat(AT_FDCWD, (const char *)host_cpath, flags));
+}
 
 void
 dump_file_descriptors(struct virtual_machine * vm)

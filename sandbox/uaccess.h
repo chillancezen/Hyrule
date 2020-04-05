@@ -20,7 +20,10 @@ user_world_pointer(struct hart * hartptr, uint32_t uaddress)
 {
     struct pm_region_operation * pmr =
         search_pm_region_callback(hartptr->vmptr, uaddress);
-    ASSERT(pmr && pmr->pmr_direct);
+    if (!pmr || !pmr->pmr_direct) {
+        dump_hart(hartptr);
+        __not_reach();
+    }
     return pmr->pmr_direct(uaddress, hartptr, pmr);
 }
 

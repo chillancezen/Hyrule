@@ -68,6 +68,14 @@ uint32_t
 do_readlinkat(struct hart * hartptr, uint32_t dirfd, const char * pathname_addr,
               void * buf, uint32_t buf_size);
 
+uint32_t
+do_sendfile(struct hart * hartptr, uint32_t out_fd, uint32_t fd,
+            void * offset, uint32_t count);
+
+uint32_t
+do_unlinkat(struct hart * hartptr, uint32_t dirfd,
+            const char * pathname, uint32_t flags);
+
 void
 dump_file_descriptors(struct virtual_machine * vm);
 

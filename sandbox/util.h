@@ -98,4 +98,15 @@ preload_binary_image(void * addr, int64_t length, const char * image_path);
     __not_reach();                                                             \
 }
 
+#include <errno.h>
+static inline uint32_t
+ERRNO(uint32_t host_syscall_ret)
+{
+    uint32_t ret = host_syscall_ret;
+    if (((int32_t)(host_syscall_ret)) < 0) {
+        ret = -errno;
+    }
+    return ret;
+}
+
 #endif

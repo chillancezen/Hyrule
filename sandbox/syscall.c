@@ -27,9 +27,9 @@ do_syscall(struct hart * hartptr, uint32_t syscall_number_a7,
     }
     uint32_t ret = handler(hartptr, arg_a0, arg_a1, arg_a2, arg_a3, arg_a4, arg_a5);
     log_trace("pc:%x syscall:%d args[a0:%08x, a1:%08x, a2:%08x, "
-              "a3:%08x, a4:%08x, a5:%08x] ret:%08x\n",
+              "a3:%08x, a4:%08x, a5:%08x] ret:%08x errno:%d\n",
               hartptr->pc, syscall_number_a7,
-              arg_a0, arg_a1, arg_a2, arg_a3, arg_a4, arg_a5, ret);
+              arg_a0, arg_a1, arg_a2, arg_a3, arg_a4, arg_a5, ret, errno);
     return ret;
 }
 
@@ -53,12 +53,12 @@ call_brk(struct hart * hartptr, uint32_t addr)
         vm->vma_heap->addr_high = addr;
         if (!is_vma_eligible(vm, vm->vma_heap)) {
             vm->vma_heap->addr_high = addr_high_bak;
-            return -1;
+            return -ENOMEM;
         }
         vm->vma_heap->host_base = realloc(vm->vma_heap->host_base,
                                           vm->vma_heap->addr_high - vm->vma_heap->addr_low);
         if (!vm->vma_heap->host_base) {
-            return -1;
+            return -ENOMEM;
         }
     }
     // we have to extend the vma.
@@ -203,6 +203,33 @@ call_readlinkat(struct hart * hartptr, uint32_t dirfd, uint32_t pathname_addr,
     return do_readlinkat(hartptr, dirfd, pathname, buff, buf_size);
 }
 
+static uint32_t
+call_sendfile(struct hart * hartptr, uint32_t out_fd, uint32_t fd,
+              uint32_t offset_addr, uint32_t count)
+{
+    void * offset = NULL;
+    if (offset_addr) {
+        offset = user_world_pointer(hartptr, offset_addr);
+    }
+    return do_sendfile(hartptr, out_fd, fd, offset, count);
+}
+
+static uint32_t
+call_unlinkat(struct hart * hartptr, uint32_t dirfd,
+              uint32_t pathname_addr, uint32_t flags)
+{
+    char * pathname = user_world_pointer(hartptr, pathname_addr);
+    return do_unlinkat(hartptr, dirfd, pathname, flags);
+}
+
+static uint32_t
+call_faccessat(struct hart * hartptr, uint32_t dirfd,
+               uint32_t pathname_addr, uint32_t mode, uint32_t flags)
+{
+    // always accessible
+    return 0;
+}
+
 __attribute__((constructor)) static void
 syscall_init(void)
 {
@@ -210,12 +237,15 @@ syscall_init(void)
 #define _(num, func)                                                           \
     handlers[num] = (sys_handler)func
     _(29, call_ioctl);
+    _(35, call_unlinkat);
+    _(48, call_faccessat);
     _(56, call_openat);
     _(57, call_close);
     _(61, call_getdents64);
     _(63, call_read);
     _(64, call_write);
     _(66, call_writev);
+    _(71, call_sendfile);
     _(78, call_readlinkat);
     _(94, call_exit);
     _(113, call_clock_gettime);

@@ -42,28 +42,12 @@ main(int argc, char ** argv)
         NULL
     };
     application_sandbox_init(&sandbox_vm, argv[1], argv + 1, envp);
-    add_breakpoint(0x60b38);
+    //add_breakpoint(0x1d38c);
     //add_breakpoint(0x159e6c);
     //add_breakpoint(0x155b00);
     //add_breakpoint(0x104e0);
     //add_breakpoint(0x104e4);
     //add_breakpoint(0x104e8);
     vmresume(hart_by_id(&sandbox_vm, sandbox_vm.boot_hart));
-#if 0
-    // once config file is loaded, don't release it ever.
-    ini_t * ini_config = ini_load(argv[1]);
-    if (!ini_config) {
-        log_fatal("can not load ini file:%s\n", argv[1]);
-        exit(2);
-    }
-    // vmm platform init
-    vmm_misc_init(ini_config);
-    // Boot a VM
-    struct virtual_machine vm;
-    virtual_machine_init(&vm, ini_config);
-    vmresume(hart_by_id(&vm, vm.boot_hart));
-    __not_reach();
-
-#endif
     return 0;
 }

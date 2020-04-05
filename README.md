@@ -1,7 +1,7 @@
 aiming at running unmodified busybox utilities.
 
 ```
-$sandbox/vmx root/coreutils/uname --help
+$VERBOSITY=5 ROOT=/home/linky/Hyrule/root/ sandbox/vmx root/coreutils/uname --help
 Usage: root/coreutils/uname [OPTION]...
 Print certain system information.  With no OPTION, same as -s.
 
@@ -24,11 +24,11 @@ Full documentation <https://www.gnu.org/software/coreutils/uname>
 or available locally via: info '(coreutils) uname invocation'
 
 Mar-22 13:17:43 linky@hyrule  ~/Hyrule
-$sandbox/vmx root/coreutils/uname -a
+$VERBOSITY=5 ROOT=/home/linky/Hyrule/root/ sandbox/vmx root/coreutils/uname -a
 ZeldaLinux hyrule 5.4.0 v2020.03 riscv32 GNU/Linux
 
 Mar-22 13:17:48 linky@hyrule  ~/Hyrule
-$sandbox/vmx root/coreutils/ls -l /
+$VERBOSITY=5 ROOT=/home/linky/Hyrule/root/ sandbox/vmx root/coreutils/ls -l /
 total 20
 drwxrwxr-x 2 1000 1000 4096 Mar 21 04:33 bin
 drwxrwxr-x 2 1000 1000 ? 4096 Mar 22 02:15 coreutils

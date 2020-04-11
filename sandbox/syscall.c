@@ -9,6 +9,8 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <sysnet.h>
+#include <signal.h>
+#include <sys/sysinfo.h>
 
 static sys_handler handlers[NR_SYSCALL_LINUX];
 
@@ -22,7 +24,8 @@ do_syscall(struct hart * hartptr, uint32_t syscall_number_a7,
     ASSERT(syscall_number_a7 < NR_SYSCALL_LINUX);
     sys_handler handler = handlers[syscall_number_a7];
     if (!handler) {
-        log_fatal("syscall:%d not implemented, see full syscalls include/uapi/asm-generic/unistd.h\n", syscall_number_a7);
+        log_fatal("pc:%x syscall:%d not implemented, see full syscalls list include/uapi/asm-generic/unistd.h\n",
+                  hartptr->pc, syscall_number_a7);
         __not_reach();
     }
     uint32_t ret = handler(hartptr, arg_a0, arg_a1, arg_a2, arg_a3, arg_a4, arg_a5);
@@ -230,18 +233,76 @@ call_faccessat(struct hart * hartptr, uint32_t dirfd,
     return 0;
 }
 
+static uint32_t
+call_lseek(struct hart * hartptr, uint32_t fd, uint32_t offset,
+           uint32_t whence)
+{
+    return do_lseek(hartptr, fd, offset, whence);
+}
+
+static uint32_t
+call_getpid(struct hart * hartptr)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    return vm->pid;    
+}
+
+static uint32_t
+call_getppid(struct hart * hartptr)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    return vm->ppid;
+}
+
+static uint32_t
+call_getcwd(struct hart * hartptr, uint32_t buf_addr, uint32_t size)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    if (buf_addr == 0) {
+        return 0;
+    }
+    void * buf = user_world_pointer(hartptr, buf_addr);
+
+    uint32_t nchar = strlen(vm->cwd);
+    memcpy(buf, vm->cwd, nchar + 1);
+    log_debug("cwd of pid %d: %s\n", vm->pid, vm->cwd);
+    return nchar + 1;
+}
+
+static uint32_t
+call_getpgid(struct hart * hartptr)
+{
+    return hartptr->vmptr->ppid;
+    // FIXME
+    return -ESRCH;
+}
+
+static uint32_t
+call_sysinfo(struct hart * hartptr, uint32_t sysinfo_addr)
+{
+    //struct sysinfo * sysinfo_buf = user_world_pointer(hartptr, sysinfo_addr);
+    // FIXME: customize some fields in the struct
+    //return sysinfo(sysinfo_buf);
+
+    return -ENOSYS;
+}
+
 __attribute__((constructor)) static void
 syscall_init(void)
 {
     memset(handlers, 0x0, sizeof(handlers));
 #define _(num, func)                                                           \
     handlers[num] = (sys_handler)func
+
+    _(17, call_getcwd);
+    _(25, call_fnctl);
     _(29, call_ioctl);
     _(35, call_unlinkat);
     _(48, call_faccessat);
     _(56, call_openat);
     _(57, call_close);
     _(61, call_getdents64);
+    _(62, call_lseek);
     _(63, call_read);
     _(64, call_write);
     _(66, call_writev);
@@ -249,12 +310,19 @@ syscall_init(void)
     _(78, call_readlinkat);
     _(94, call_exit);
     _(113, call_clock_gettime);
+    _(129, call_kill);
+    _(134, call_sigaction);
+    _(135, call_sigprocmask);
+    _(155, call_getpgid);
     _(160, call_uname);
     _(169, call_gettimeofday);
+    _(172, call_getpid);
+    _(173, call_getppid);
     _(174, call_getuid);
     _(175, call_getuid);
     _(176, call_getuid);
     _(177, call_getuid);
+    _(179, call_sysinfo);
     _(198, call_socket);
     _(214, call_brk);
     _(215, call_munmap);

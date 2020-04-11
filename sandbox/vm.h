@@ -49,6 +49,9 @@ struct virtual_machine {
 
     char * root;
     char cwd[128];
+
+    uint32_t pid;
+    uint32_t ppid;
 };
 
 __attribute__((always_inline))

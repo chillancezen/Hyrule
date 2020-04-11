@@ -18,8 +18,10 @@
 #include <sys/types.h>
 #include <sys/syscall.h>
 #include <sys/sendfile.h>
+#include <fcntl.h>
+
 #define MAX_PATH 512
- 
+
 static int
 canonicalize_path_name(uint8_t * dst, const uint8_t * src)
 {
@@ -501,6 +503,61 @@ do_unlinkat(struct hart * hartptr, uint32_t dirfd,
     return ERRNO(unlinkat(AT_FDCWD, (const char *)host_cpath, flags));
 }
 
+uint32_t
+do_lseek(struct hart * hartptr, uint32_t fd, uint32_t offset, uint32_t whence)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    if (fd > MAX_FILES_NR || !vm->files[fd].valid ||
+        vm->files[fd].closed) {
+        return -EBADF;
+    }
+    
+    return ERRNO(lseek(vm->files[fd].host_fd, offset, whence)); 
+}
+
+static uint32_t
+do_fcntl_duplicate_fd(struct hart * hartptr, uint32_t fd, uint32_t cmd, uint32_t opaque)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    if (fd > MAX_FILES_NR || !vm->files[fd].valid ||
+        vm->files[fd].closed) {
+        return -EBADF;
+    }
+
+    struct file * target_file = allocate_file_descriptor(vm);
+    if (!target_file) {
+        return -ENOMEM;
+    }
+
+    int32_t host_fd = fcntl(vm->files[fd].host_fd, cmd, opaque);
+    if (host_fd < 0) {
+        deallocate_file_descriptor(vm, target_file);
+        return ERRNO(host_fd);
+    }
+
+    target_file->host_fd = host_fd;
+    target_file->ref_count += 1;
+    if (vm->files[fd].guest_cpath) {
+        target_file->guest_cpath = strdup(vm->files[fd].guest_cpath);
+    }
+    return target_file->fd;
+}
+
+uint32_t
+call_fnctl(struct hart * hartptr, uint32_t fd, uint32_t cmd, uint32_t opaque)
+{
+    switch(cmd)
+    {
+        case F_DUPFD:
+        case F_DUPFD_CLOEXEC:
+            return do_fcntl_duplicate_fd(hartptr, fd, cmd, opaque);
+            break;
+        default:
+            log_fatal("not recognized fcntl command:%d\n", cmd);
+            break;
+    }
+    return -ENOSYS;
+}
 void
 dump_file_descriptors(struct virtual_machine * vm)
 {

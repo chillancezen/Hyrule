@@ -76,6 +76,12 @@ uint32_t
 do_unlinkat(struct hart * hartptr, uint32_t dirfd,
             const char * pathname, uint32_t flags);
 
+uint32_t
+do_lseek(struct hart * hartptr, uint32_t fd, uint32_t offset, uint32_t whence);
+
+uint32_t
+call_fnctl(struct hart * hartptr, uint32_t fd, uint32_t cmd, uint32_t opaque);
+
 void
 dump_file_descriptors(struct virtual_machine * vm);
 

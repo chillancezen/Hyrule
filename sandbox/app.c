@@ -311,6 +311,20 @@ app_root_init(struct virtual_machine * vm)
     vm->root = root;
 }
 
+static uint32_t gpid_counter = 1;
+
+static void
+misc_init(struct virtual_machine * vm)
+{
+    vm->pid = gpid_counter;
+    gpid_counter += 1;
+
+    // FIXME: fix the parent pid here
+    vm->ppid = vm->pid;
+
+    strcpy(vm->cwd, "/");
+}
+
 void
 application_sandbox_init(struct virtual_machine * vm, const char * app_path,
                          char ** argv, char ** envp)
@@ -321,11 +335,9 @@ application_sandbox_init(struct virtual_machine * vm, const char * app_path,
     program_init(vm, app_path);
     env_setup(vm, argv, envp);
 
-    // FIXME: make it configurable
     app_root_init(vm);
-    //vm->root = "/home/linky/Hyrule/root";
-    //vm->root = "/root/workspace/Zelda.RISCV.Emulator/root";
-
     vfs_init(vm);
+
+    misc_init(vm);
 }
 

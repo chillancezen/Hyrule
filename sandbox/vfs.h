@@ -10,12 +10,12 @@ struct hart;
 struct file {
     int32_t fd;
     int32_t host_fd;
-    int32_t external_fd;
-    uint32_t ref_count;
+    //int32_t external_fd;
+    //uint32_t ref_count;
 
     uint32_t valid:1;
-    uint32_t external:1;
-    uint32_t closed:1;
+    //uint32_t external:1;
+    //uint32_t closed:1;
 
     char * guest_cpath;
 };
@@ -81,6 +81,13 @@ do_lseek(struct hart * hartptr, uint32_t fd, uint32_t offset, uint32_t whence);
 
 uint32_t
 call_fnctl(struct hart * hartptr, uint32_t fd, uint32_t cmd, uint32_t opaque);
+
+uint32_t
+call_dup(struct hart * hartptr, uint32_t fd);
+
+uint32_t
+call_dup3(struct hart * hartptr, uint32_t old_fd, uint32_t new_fd,
+          uint32_t flags);
 
 void
 dump_file_descriptors(struct virtual_machine * vm);

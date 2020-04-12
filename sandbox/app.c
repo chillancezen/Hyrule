@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <tinyprintf.h>
+#include <debug.h>
 
 static void
 cpu_init(struct virtual_machine * vm)
@@ -325,6 +326,21 @@ misc_init(struct virtual_machine * vm)
     strcpy(vm->cwd, "/");
 }
 
+static void
+breakpoints_init(struct virtual_machine * vm)
+{
+    char * breakpoints = getenv("BREAK");
+    if (!breakpoints) {
+        return;
+    }
+    char delimiter[] = " ";
+    char * bp = strtok(breakpoints, delimiter);
+    while (bp) {
+        add_breakpoint(strtol(bp, NULL, 16));
+        bp = strtok(NULL, delimiter);
+    }
+}
+
 void
 application_sandbox_init(struct virtual_machine * vm, const char * app_path,
                          char ** argv, char ** envp)
@@ -339,5 +355,6 @@ application_sandbox_init(struct virtual_machine * vm, const char * app_path,
     vfs_init(vm);
 
     misc_init(vm);
+    breakpoints_init(vm);
 }
 

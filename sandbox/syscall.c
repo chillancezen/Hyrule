@@ -11,6 +11,8 @@
 #include <sysnet.h>
 #include <signal.h>
 #include <sys/sysinfo.h>
+#include <sys/resource.h>
+#include <sys/select.h>
 
 static sys_handler handlers[NR_SYSCALL_LINUX];
 
@@ -287,6 +289,62 @@ call_sysinfo(struct hart * hartptr, uint32_t sysinfo_addr)
     return -ENOSYS;
 }
 
+static uint32_t
+call_getrlimit(struct hart * hartptr, uint32_t resource, uint32_t rlim_addr)
+{
+    void * rlim = user_world_pointer(hartptr, rlim_addr);
+    return ERRNO(getrlimit(resource, rlim));
+}
+
+static uint32_t
+call_pselect(struct hart * hartptr, uint32_t nfds, uint32_t readfds_addr,
+             uint32_t writefds_addr, uint32_t exceptfds_addr,
+             uint32_t timeout_addr, uint32_t sigmask_addr)
+{
+    struct virtual_machine * vm = hartptr->vmptr;
+    int is_readfds_set = user_accessible(hartptr, readfds_addr);
+    int is_writefds_set = user_accessible(hartptr, writefds_addr);
+    int is_exceptfds_set = user_accessible(hartptr, exceptfds_addr);
+
+    fd_set * readfds = is_readfds_set ? user_world_pointer(hartptr, readfds_addr) : NULL;
+    fd_set * writefds = is_writefds_set ? user_world_pointer(hartptr, writefds_addr) : NULL;
+    fd_set * exceptfds = is_exceptfds_set ? user_world_pointer(hartptr, exceptfds_addr) : NULL;
+
+    fd_set readfds_host;
+    fd_set writefds_host;
+    fd_set exceptfds_host;
+
+    FD_ZERO(&readfds_host);
+    FD_ZERO(&writefds_host);
+    FD_ZERO(&exceptfds_host);
+
+    int idx;
+    for (idx = 0; idx < nfds + 1 && idx < MAX_FILES_NR; idx++) {
+        if (!vm->files[idx].valid) {
+            continue;
+        }
+
+        if (readfds && FD_ISSET(idx, readfds)) {
+            FD_SET(vm->files[idx].host_fd, &readfds_host);
+            log_trace("call_pselect readfds: %d\n", idx);
+        }
+
+        if (writefds && FD_ISSET(idx, writefds)) {
+            FD_SET(vm->files[idx].host_fd, &writefds_host);
+            log_trace("call_pselect writefds: %d\n", idx);
+        }
+
+        if (exceptfds && FD_ISSET(idx, exceptfds)) {
+            FD_SET(vm->files[idx].host_fd, &exceptfds_host);
+            log_trace("call_pselect exceptfds: %d\n", idx);
+        }
+
+    }
+
+    // FIXME: do pselect from host side
+    return 0;
+}
+
 __attribute__((constructor)) static void
 syscall_init(void)
 {
@@ -295,6 +353,8 @@ syscall_init(void)
     handlers[num] = (sys_handler)func
 
     _(17, call_getcwd);
+    _(23, call_dup);
+    _(24, call_dup3);
     _(25, call_fnctl);
     _(29, call_ioctl);
     _(35, call_unlinkat);
@@ -307,6 +367,7 @@ syscall_init(void)
     _(64, call_write);
     _(66, call_writev);
     _(71, call_sendfile);
+    _(72, call_pselect);
     _(78, call_readlinkat);
     _(94, call_exit);
     _(113, call_clock_gettime);
@@ -315,6 +376,7 @@ syscall_init(void)
     _(135, call_sigprocmask);
     _(155, call_getpgid);
     _(160, call_uname);
+    _(163, call_getrlimit);
     _(169, call_gettimeofday);
     _(172, call_getpid);
     _(173, call_getppid);

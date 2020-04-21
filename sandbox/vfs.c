@@ -640,8 +640,8 @@ dump_file_descriptors(struct virtual_machine * vm)
         if (!vm->files[idx].valid) {
             continue;
         }
-        log_info("\tfd:%-2d  filepath:%s\n",
-                 vm->files[idx].fd,
+        log_info("\tfd:%-2d host_fd:%-2d  filepath:%s\n",
+                 vm->files[idx].fd, vm->files[idx].host_fd,
                  vm->files[idx].guest_cpath);
     }
 }

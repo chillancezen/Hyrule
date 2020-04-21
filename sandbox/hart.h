@@ -6,6 +6,7 @@
 #include <hart_def.h>
 #include <stdint.h>
 #include <util.h>
+#include <list.h>
 
 struct integer_register_profile {
     REGISTER_TYPE zero;
@@ -61,6 +62,7 @@ struct status_control_blob {
 
 struct tlb_entry;
 struct hart {
+    // DONT't PUT ANY FIELDS HERE
     struct integer_register_profile registers __attribute__((aligned(64)));
     REGISTER_TYPE pc;
     int hart_id;
@@ -90,6 +92,8 @@ struct hart {
     uint32_t dtlb_cap;
 
     uint64_t tsc;
+
+    struct list_elem list;   
 }__attribute__((aligned(64)));
 
 

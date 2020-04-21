@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <tinyprintf.h>
 #include <debug.h>
+#include <task.h>
 
 static void
 cpu_init(struct virtual_machine * vm)
@@ -18,8 +19,10 @@ cpu_init(struct virtual_machine * vm)
     vm->nr_harts = 1;
     vm->boot_hart = 0;
 
-    vm->harts = aligned_alloc(64, vm->nr_harts * sizeof(struct hart));
-    ASSERT(vm->harts);
+    //vm->harts = aligned_alloc(64, vm->nr_harts * sizeof(struct hart));
+    vm->hartptr = aligned_alloc(64, sizeof(struct hart));
+    //ASSERT(vm->harts);
+    ASSERT(vm->hartptr);
 
     // FIXME:hart->pc will be loaded when resolving the elf file
     struct hart * hartptr = hart_by_id(vm, 0);
@@ -309,7 +312,7 @@ app_root_init(struct virtual_machine * vm)
         log_fatal("please sepcify environment variable: ROOT\n");
         exit(-1);
     }
-    vm->root = root;
+    strcpy(vm->root, root);
 }
 
 static uint32_t gpid_counter = 1;
@@ -356,5 +359,7 @@ application_sandbox_init(struct virtual_machine * vm, const char * app_path,
 
     misc_init(vm);
     breakpoints_init(vm);
+
+    register_task(vm);
 }
 

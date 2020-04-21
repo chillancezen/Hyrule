@@ -12,6 +12,7 @@
 #include <ini.h>
 #include <pm_region.h>
 #include <vfs.h>
+#include <list.h>
 
 #define MAX_VMA_NR  128
 #define MAX_FILES_NR   128
@@ -20,8 +21,10 @@ struct virtual_machine {
 
     int nr_harts;
     int boot_hart;
-    struct hart * harts;
-    
+    // XXX:due to historical reason: harts must be deprecated. one struct vm
+    // corresponds to one struct hart.
+    //struct hart * harts;
+    struct hart * hartptr;
     // main memory
     int64_t main_mem_size;
     int64_t main_mem_base;
@@ -41,25 +44,30 @@ struct virtual_machine {
     // VMA regions: here we reuse existing data structure: pm_region_operation
     int nr_pmr_ops;
     struct pm_region_operation  pmr_ops[MAX_VMA_NR];
+    //struct list_elem pmr_head;
     struct pm_region_operation * vma_heap;
     struct pm_region_operation * vma_stack;
 
     // files operation
     struct file files[MAX_FILES_NR];
 
-    char * root;
+    char root[128];
     char cwd[128];
 
     uint32_t pid;
     uint32_t ppid;
+
+    struct list_elem list_node;    
 };
 
 __attribute__((always_inline))
 static inline struct hart *
 hart_by_id(struct virtual_machine * vm, int hart_id)
 {
-    ASSERT(hart_id >= 0 && hart_id < vm->nr_harts);
-    return &vm->harts[hart_id];
+    // XXX: 1:1 mapping.
+    //ASSERT(hart_id >= 0 && hart_id < vm->nr_harts);
+    //return &vm->harts[hart_id];
+    return vm->hartptr;
 }
 
 

@@ -13,6 +13,7 @@
 #include <sys/sysinfo.h>
 #include <sys/resource.h>
 #include <sys/select.h>
+#include <task.h>
 
 static sys_handler handlers[NR_SYSCALL_LINUX];
 
@@ -388,6 +389,7 @@ syscall_init(void)
     _(198, call_socket);
     _(214, call_brk);
     _(215, call_munmap);
+    _(220, call_clone);
     _(222, call_mmap);
     _(291, call_statx);
 #undef _

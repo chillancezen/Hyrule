@@ -12,6 +12,7 @@
 #include <debug.h>
 #include <mmu_tlb.h>
 
+#if 0
 static void
 device_init(struct virtual_machine * vm)
 {
@@ -99,4 +100,5 @@ virtual_machine_init(struct virtual_machine * vm, ini_t * ini)
 
     dump_memory_regions(vm);
 }
+#endif
 

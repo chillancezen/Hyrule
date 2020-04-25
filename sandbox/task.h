@@ -6,9 +6,14 @@
 #define _TASK_H
 #include <hart.h>
 
+uint32_t
+new_pid(void);
+
+void
+dump_threads(struct hart * hartptr);
+
 void
 register_task(struct virtual_machine * vm);
-
 
 uint32_t
 call_clone(struct hart * hartptr, uint32_t flags, uint32_t child_stack_addr,

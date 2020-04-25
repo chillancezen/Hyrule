@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <util.h>
+#include <vm.h>
 
 static void
 print_hint(struct hart * hartptr)
@@ -73,8 +74,8 @@ inspect_memory(struct hart * hartptr, int argc, char *argv[])
         goto error_usage;
     }
     
-    struct pm_region_operation * pmr1 = search_pm_region_callback(hartptr->vmptr, low_addr);
-    struct pm_region_operation * pmr2 = search_pm_region_callback(hartptr->vmptr, high_addr);
+    struct pm_region_operation * pmr1 = search_pm_region_callback(get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_VM), low_addr);
+    struct pm_region_operation * pmr2 = search_pm_region_callback(get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_VM), high_addr);
     if (!pmr1 || pmr1 != pmr2) {
         printf(ANSI_COLOR_RED"memory region doesnt exist or two addresses "
                "do not reside in same pm region\n"ANSI_COLOR_RESET);
@@ -180,7 +181,7 @@ debug_help(struct hart * hartptr, int argc, char *argv[]);
 static int
 dump_vma_call(struct hart * hartptr, int argc, char *argv[])
 {
-    dump_memory_regions(hartptr->vmptr);
+    dump_memory_regions(get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_VM));
     return ACTION_CONTINUE;
 }
 
@@ -188,7 +189,15 @@ dump_vma_call(struct hart * hartptr, int argc, char *argv[])
 static int
 dump_fd_call(struct hart * hartptr, int argc, char *argv[])
 {
-    dump_file_descriptors(hartptr->vmptr);
+    dump_file_descriptors(get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES));
+    return ACTION_CONTINUE;
+}
+
+#include <task.h>
+static int
+dump_threads_info(struct hart * hartptr, int argc, char * argv[])
+{
+    dump_threads(hartptr);
     return ACTION_CONTINUE;
 }
 
@@ -197,6 +206,11 @@ static struct cmd_registery_item cmds_items[] = {
         .cmd_prefixs = {"info", "registers", NULL},
         .func = dump_registers_info,
         .desc = "dump the registers of a hart"
+    },
+    {
+        .cmd_prefixs = {"info", "threads", NULL},
+        .func = dump_threads_info,
+        .desc = "dump the threads info"
     },
     {
         .cmd_prefixs = {"info", "translation", NULL},

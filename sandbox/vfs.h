@@ -7,6 +7,11 @@
 struct virtual_machine;
 struct hart;
 
+enum FILE_TYPE {
+    FILE_TYPE_ERROR,
+    FILE_TYPE_REGULAR,
+    FILE_TYPE_SOCKET,
+};
 struct file {
     int32_t fd;
     int32_t host_fd;
@@ -17,7 +22,13 @@ struct file {
     //uint32_t external:1;
     //uint32_t closed:1;
 
-    char * guest_cpath;
+    char * host_cpath;
+
+    struct {
+        uint32_t flags;
+        uint32_t mode;
+        enum FILE_TYPE file_type;        
+    }clone_blob;
 };
 
 

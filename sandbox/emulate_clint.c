@@ -6,6 +6,7 @@
 #include <log.h>
 #include <pm_region.h>
 
+#if 0
 static uint64_t
 clint_read(uint64_t addr, int access_size, struct hart * hartptr,
              struct pm_region_operation * pmr)
@@ -44,4 +45,4 @@ clint_init(struct virtual_machine * vm)
     };
     register_pm_region_operation(vm, &clint_pmr);
 }
-
+#endif

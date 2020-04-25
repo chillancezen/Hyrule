@@ -16,18 +16,18 @@
 static void
 cpu_init(struct virtual_machine * vm)
 {
-    vm->nr_harts = 1;
-    vm->boot_hart = 0;
+    //vm->nr_harts = 1;
+    //vm->boot_hart = 0;
 
     //vm->harts = aligned_alloc(64, vm->nr_harts * sizeof(struct hart));
     vm->hartptr = aligned_alloc(64, sizeof(struct hart));
     //ASSERT(vm->harts);
     ASSERT(vm->hartptr);
 
-    // FIXME:hart->pc will be loaded when resolving the elf file
+    // FIXED:hart->pc will be loaded when resolving the elf file
     struct hart * hartptr = hart_by_id(vm, 0);
     hart_init(hartptr, 0);
-    hartptr->vmptr = vm;
+    hartptr->native_vmptr = vm;
     
     // XXX:application always works in machine mode, no mmu is needed.
     // TLB is not initialized.
@@ -317,14 +317,22 @@ app_root_init(struct virtual_machine * vm)
 
 static uint32_t gpid_counter = 1;
 
+uint32_t
+new_pid(void)
+{
+    uint32_t pid = gpid_counter;
+    gpid_counter += 1;
+    return pid;
+}
+
 static void
 misc_init(struct virtual_machine * vm)
 {
-    vm->pid = gpid_counter;
-    gpid_counter += 1;
+    vm->pid = new_pid();
 
-    // FIXME: fix the parent pid here
+    // FIXED: fix the parent pid here
     vm->ppid = vm->pid;
+    vm->tgid = vm->pid;
 
     strcpy(vm->cwd, "/");
 }

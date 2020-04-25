@@ -14,7 +14,7 @@ __attribute__((always_inline)) static inline uint##_size##_t                   \
 direct_read##_size (struct hart * hartptr, uint32_t linear_address)            \
 {                                                                              \
     struct pm_region_operation * pmr;                                          \
-    pmr = search_pm_region_callback(hartptr->vmptr, linear_address);           \
+    pmr = search_pm_region_callback(get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_VM), linear_address);           \
     if (!pmr) {                                                                \
         dump_hart(hartptr);                                                    \
         __not_reach();                                                         \
@@ -37,7 +37,7 @@ direct_write##_size (struct hart * hartptr, uint32_t linear_address,           \
                      uint##_size##_t value)                                    \
 {                                                                              \
     struct pm_region_operation * pmr;                                          \
-    pmr = search_pm_region_callback(hartptr->vmptr, linear_address);           \
+    pmr = search_pm_region_callback(get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_VM), linear_address);           \
     if (!pmr) {                                                                \
         dump_hart(hartptr);                                                    \
         __not_reach();                                                         \

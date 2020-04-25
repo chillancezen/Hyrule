@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <vm.h>
 
+#if 0
 void
 fdt_build_init(struct fdt_build_blob * blob, int buffer_size,
                int string_buffer_size)
@@ -499,4 +500,5 @@ fdt_test(void)
     dump_fdt(dtb_base, dtb_length);
     close(fd);
 }
+#endif
 #endif

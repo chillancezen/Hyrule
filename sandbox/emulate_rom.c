@@ -6,6 +6,7 @@
 #include <log.h>
 #include <pm_region.h>
 
+#if 0
 static uint64_t
 bootrom_read(uint64_t addr, int access_size, struct hart * hartptr,
              struct pm_region_operation * pmr)
@@ -89,3 +90,4 @@ bootrom_init(struct virtual_machine * vm)
                                  vm->bootrom_size - pc_on_reset + vm->bootrom_base,
                                  rom_image));
 }
+#endif

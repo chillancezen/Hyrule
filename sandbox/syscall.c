@@ -49,7 +49,7 @@ call_getuid(struct hart * hartptr)
 static uint32_t
 call_brk(struct hart * hartptr, uint32_t addr)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
+    struct virtual_machine * vm = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_VM);
     if (!addr || addr <= vm->vma_heap->addr_high) {
         // return currnet location of program break.
         return vm->vma_heap->addr_high;
@@ -246,21 +246,21 @@ call_lseek(struct hart * hartptr, uint32_t fd, uint32_t offset,
 static uint32_t
 call_getpid(struct hart * hartptr)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    return vm->pid;    
+    struct virtual_machine * vm = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_NATIVE);
+    return vm->tgid;    
 }
 
 static uint32_t
 call_getppid(struct hart * hartptr)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
+    struct virtual_machine * vm = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_NATIVE);
     return vm->ppid;
 }
 
 static uint32_t
 call_getcwd(struct hart * hartptr, uint32_t buf_addr, uint32_t size)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
+    struct virtual_machine * vm = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FS);
     if (buf_addr == 0) {
         return 0;
     }
@@ -275,7 +275,8 @@ call_getcwd(struct hart * hartptr, uint32_t buf_addr, uint32_t size)
 static uint32_t
 call_getpgid(struct hart * hartptr)
 {
-    return hartptr->vmptr->ppid;
+    struct virtual_machine * vm = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_NATIVE);
+    return vm->ppid;
     // FIXME
     return -ESRCH;
 }
@@ -302,7 +303,7 @@ call_pselect(struct hart * hartptr, uint32_t nfds, uint32_t readfds_addr,
              uint32_t writefds_addr, uint32_t exceptfds_addr,
              uint32_t timeout_addr, uint32_t sigmask_addr)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
+    struct virtual_machine * vm = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
     int is_readfds_set = user_accessible(hartptr, readfds_addr);
     int is_writefds_set = user_accessible(hartptr, writefds_addr);
     int is_exceptfds_set = user_accessible(hartptr, exceptfds_addr);

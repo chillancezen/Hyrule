@@ -66,7 +66,10 @@ struct hart {
     struct integer_register_profile registers __attribute__((aligned(64)));
     REGISTER_TYPE pc;
     int hart_id;
-    struct virtual_machine * vmptr;
+
+    //struct virtual_machine * vmptr;
+    // vmptr ==> native_vmptr to pick all callers out
+    struct virtual_machine * native_vmptr;
 
     int nr_translated_instructions;
     void * pc_mappings;
@@ -79,6 +82,9 @@ struct hart {
     void * csrs_base;
     uint32_t hart_magic;
 
+    // =================== fields below are not cared by APP-LEVEL emulation====
+    // XXX: we don't remove them because thre is too much dependency to handle
+    // here.
     union interrupt_control_blob idelegation;
     union interrupt_control_blob ienable;
     union interrupt_control_blob ipending;
@@ -92,6 +98,7 @@ struct hart {
     uint32_t dtlb_cap;
 
     uint64_t tsc;
+    // =================== fields above are not cared by APP-LEVEL emulation====
 
     struct list_elem list;   
 }__attribute__((aligned(64)));

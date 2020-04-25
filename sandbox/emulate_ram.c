@@ -4,7 +4,7 @@
 
 #include <vm.h>
 #include <pm_region.h>
-
+#if 0
 static void *
 ram_direct(uint64_t addr, struct hart * hartptr,
            struct pm_region_operation * pmr)
@@ -111,3 +111,4 @@ ram_init(struct virtual_machine * vm)
                                      vm->main_mem_base, initrd_path));
     }
 }
+#endif

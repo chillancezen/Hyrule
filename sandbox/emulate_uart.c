@@ -4,7 +4,7 @@
 #include <pm_region.h>
 #include <log.h>
 #include <fdt.h>
-
+#if 0
 #define UART_16550_BASE 0x10000000
 
 
@@ -107,3 +107,4 @@ uart_init(struct virtual_machine * vm)
     };
     register_pm_region_operation(vm, &uart_mmio_region);
 }
+#endif

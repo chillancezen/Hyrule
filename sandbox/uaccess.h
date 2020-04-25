@@ -11,7 +11,7 @@ static inline int
 user_accessible(struct hart * hartptr, uint32_t uaddress)
 {
     struct pm_region_operation * pmr =
-        search_pm_region_callback(hartptr->vmptr, uaddress);
+        search_pm_region_callback(get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_VM), uaddress);
     return pmr && pmr->pmr_direct;
 }
 
@@ -19,7 +19,7 @@ static inline void *
 user_world_pointer(struct hart * hartptr, uint32_t uaddress)
 {
     struct pm_region_operation * pmr =
-        search_pm_region_callback(hartptr->vmptr, uaddress);
+        search_pm_region_callback(get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_VM), uaddress);
     if (!pmr || !pmr->pmr_direct) {
         dump_hart(hartptr);
         __not_reach();

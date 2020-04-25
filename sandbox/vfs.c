@@ -111,8 +111,8 @@ deallocate_file_descriptor(struct virtual_machine * vm,
                            struct file * target_file)
 {
     ASSERT(target_file->valid);
-    if (target_file->guest_cpath) {
-        free(target_file->guest_cpath);
+    if (target_file->host_cpath) {
+        free(target_file->host_cpath);
     }
     memset(target_file, 0x0, sizeof(struct file));
 }
@@ -122,7 +122,8 @@ uint32_t
 do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
           uint32_t flags, uint32_t mode)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
+    struct virtual_machine * vm_fs = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FS);
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
     // judge whether a relative path is given.
     char * ptr = (char *)guest_path;
     for(;*ptr && *ptr == ' '; ptr++);
@@ -133,7 +134,7 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
     ASSERT(!canonicalize_path_name(guest_cpath, (const uint8_t *)guest_path));
     if (is_relative_path) {
         if ((int32_t)dirfd == AT_FDCWD) {
-            relative_dir_path = vm->cwd;
+            relative_dir_path = vm_fs->cwd;
         } else {
             // FIXME:
             __not_reach();
@@ -143,19 +144,19 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
     uint8_t host_path[MAX_PATH];
     uint8_t host_cpath[MAX_PATH];
     ptr = (char *)host_path;
-    ptr = append_string(ptr, (const char *)vm->root);
+    ptr = append_string(ptr, (const char *)vm_fs->root);
     ptr = append_string(ptr, (const char *)relative_dir_path);
     ptr = append_string(ptr, (const char *)guest_cpath);
     ASSERT(!canonicalize_path_name(host_cpath, host_path));
 
     // setup an unoccupied file descriptor
-    struct file * new_file = allocate_file_descriptor(vm);
+    struct file * new_file = allocate_file_descriptor(vm_files);
     if (!new_file) {
         return -ENOMEM;
     }
     int host_fd = open((char *)host_cpath, flags, mode);
     if (host_fd < 0) {
-        deallocate_file_descriptor(vm, new_file);
+        deallocate_file_descriptor(vm_files, new_file);
         return ERRNO(host_fd);
     }
     new_file->host_fd = host_fd;
@@ -164,7 +165,10 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
     ptr = append_string((char *)guest_abs_path, (const char *)relative_dir_path);
     ptr = append_string(ptr, (const char *)guest_cpath);
     ASSERT(!canonicalize_path_name(guest_abs_cpath, guest_abs_path));
-    new_file->guest_cpath = strdup((const char *)guest_abs_cpath);
+    new_file->host_cpath = strdup((const char *)host_cpath);
+    new_file->clone_blob.file_type = FILE_TYPE_REGULAR;
+    new_file->clone_blob.mode = mode;
+    new_file->clone_blob.flags = flags;
 
     log_debug("openat: guest path:%s host path:%s fd\n", guest_path, host_cpath,
               new_file->fd);
@@ -174,7 +178,7 @@ do_openat(struct hart * hartptr, uint32_t dirfd, const char * guest_path,
 uint32_t
 do_close(struct hart * hartptr, uint32_t fd)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
+    struct virtual_machine * vm = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
     if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
         return -EBADF;
     }
@@ -227,7 +231,8 @@ uint32_t
 do_statx(struct hart * hartptr, uint32_t dirfd, char * pathname, uint32_t flag,
          uint32_t mask, void * statxbuf)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
+    struct virtual_machine * vm_fs = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FS);
+
     char * ptr = pathname;
     for(;*ptr && *ptr == ' '; ptr++);
     int is_relative_path = *ptr != '/';
@@ -237,7 +242,7 @@ do_statx(struct hart * hartptr, uint32_t dirfd, char * pathname, uint32_t flag,
     ASSERT(!canonicalize_path_name(guest_cpath, (const uint8_t *)pathname));
     if (is_relative_path) {
         if ((int32_t)dirfd == AT_FDCWD) {
-            relative_dir_path = vm->cwd;
+            relative_dir_path = vm_fs->cwd;
         } else {
             // FIXME
         }
@@ -245,7 +250,7 @@ do_statx(struct hart * hartptr, uint32_t dirfd, char * pathname, uint32_t flag,
     uint8_t host_path[MAX_PATH];
     uint8_t host_cpath[MAX_PATH];
     ptr = (char *)host_path;
-    ptr = append_string(ptr, (const char *)vm->root);
+    ptr = append_string(ptr, (const char *)vm_fs->root);
     ptr = append_string(ptr, (const char *)relative_dir_path);
     ptr = append_string(ptr, (const char *)guest_cpath);
     ASSERT(!canonicalize_path_name(host_cpath, host_path));
@@ -260,7 +265,7 @@ uint32_t
 do_readlinkat(struct hart * hartptr, uint32_t dirfd, const char * pathname,
               void * buf, uint32_t buf_size)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
+    struct virtual_machine * vm_fs = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FS);
     char * ptr = (char *)pathname;
     for(;*ptr && *ptr == ' '; ptr++);
     int is_relative_path = *ptr != '/';
@@ -270,7 +275,7 @@ do_readlinkat(struct hart * hartptr, uint32_t dirfd, const char * pathname,
     ASSERT(!canonicalize_path_name(guest_cpath, (const uint8_t *)pathname));
     if (is_relative_path) {
         if ((int32_t)dirfd == AT_FDCWD) {
-            relative_dir_path = vm->cwd;
+            relative_dir_path = vm_fs->cwd;
         } else {
             // FIXME
         }
@@ -279,7 +284,7 @@ do_readlinkat(struct hart * hartptr, uint32_t dirfd, const char * pathname,
     uint8_t host_path[MAX_PATH];
     uint8_t host_cpath[MAX_PATH];
     ptr = (char *)host_path;
-    ptr = append_string(ptr, (const char *)vm->root);
+    ptr = append_string(ptr, (const char *)vm_fs->root);
     ptr = append_string(ptr, (const char *)relative_dir_path);
     ptr = append_string(ptr, (const char *)guest_cpath);
     ASSERT(!canonicalize_path_name(host_cpath, host_path));
@@ -292,8 +297,8 @@ do_writev(struct hart * hartptr, uint32_t fd,
           struct iovec32 * guest_iov, uint32_t iovcnt)
 
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (fd > MAX_FILES_NR || !vm_files->files[fd].valid) {
         return -EINVAL;
     }
     
@@ -307,7 +312,7 @@ do_writev(struct hart * hartptr, uint32_t fd,
             user_world_pointer(hartptr, guest_iov[idx].iov_base);
         host_vecbase[idx].iov_len = guest_iov[idx].iov_len;
     }
-    uint32_t host_rc = writev(vm->files[fd].host_fd, host_vecbase, iovcnt);
+    uint32_t host_rc = writev(vm_files->files[fd].host_fd, host_vecbase, iovcnt);
     free(host_vecbase);
     return ERRNO(host_rc);
 }
@@ -315,64 +320,64 @@ do_writev(struct hart * hartptr, uint32_t fd,
 uint32_t
 do_write(struct hart * hartptr, uint32_t fd, void * buf, uint32_t nr_write)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (fd > MAX_FILES_NR || !vm_files->files[fd].valid) {
         return -EBADF;
     }
-    return ERRNO(write(vm->files[fd].host_fd, buf, nr_write));
+    return ERRNO(write(vm_files->files[fd].host_fd, buf, nr_write));
 }
 
 uint32_t
 do_read(struct hart * hartptr, uint32_t fd, void * buf, uint32_t nr_read)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (fd > MAX_FILES_NR || !vm_files->files[fd].valid) {
         return -EBADF;
     }
-    return ERRNO(read(vm->files[fd].host_fd, buf, nr_read));
+    return ERRNO(read(vm_files->files[fd].host_fd, buf, nr_read));
 }
 
 uint32_t
 do_ioctl(struct hart * hartptr, uint32_t fd, uint32_t request,
          uint32_t argp_addr)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (fd > MAX_FILES_NR || !vm_files->files[fd].valid) {
         return -EBADF;
     }
     void * argp = NULL;
     if (user_accessible(hartptr, argp_addr)) {
         argp = user_world_pointer(hartptr, argp_addr);
     }
-    return ERRNO(ioctl(vm->files[fd].host_fd, request, argp));
+    return ERRNO(ioctl(vm_files->files[fd].host_fd, request, argp));
 }
 
 uint32_t
 do_getdents64(struct hart * hartptr, uint32_t fd, uint32_t dirp_addr,
               uint32_t count)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (fd > MAX_FILES_NR || !vm_files->files[fd].valid) {
         return -EBADF;
     }
     void * dirp = user_world_pointer(hartptr, dirp_addr);
-    return syscall(__NR_getdents64, vm->files[fd].host_fd, dirp, count);
+    return syscall(__NR_getdents64, vm_files->files[fd].host_fd, dirp, count);
 }
 
 uint32_t
 do_sendfile(struct hart * hartptr, uint32_t out_fd, uint32_t fd,
             void * offset, uint32_t count)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (fd > MAX_FILES_NR || !vm_files->files[fd].valid) {
         return -EBADF;
     }
 
-    if (out_fd > MAX_FILES_NR || !vm->files[out_fd].valid) {
+    if (out_fd > MAX_FILES_NR || !vm_files->files[out_fd].valid) {
         return -EBADF;
     }
 
-    return ERRNO(sendfile(vm->files[out_fd].host_fd, vm->files[fd].host_fd, offset, count));
+    return ERRNO(sendfile(vm_files->files[out_fd].host_fd, vm_files->files[fd].host_fd, offset, count));
 }
 
 #define PAGE_ROUNDUP(addr) (((addr) & 4095) ? (((addr) & ~4095) + 4096) : (addr))
@@ -423,7 +428,7 @@ do_mmap(struct hart* hartptr, uint32_t proposal_addr, uint32_t len,
     mprot |= (flags & PROT_WRITE) ? PROGRAM_WRITE : 0;
     mprot |= (flags & PROT_EXEC) ? PROGRAM_EXECUTE : 0;
 
-    struct virtual_machine * vm = hartptr->vmptr;
+    struct virtual_machine * vm = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_VM);
     if (len == 0) {
         return -EINVAL;
     }
@@ -441,7 +446,7 @@ do_mmap(struct hart* hartptr, uint32_t proposal_addr, uint32_t len,
 uint32_t
 do_munmap(struct hart * hartptr, uint32_t addr, uint32_t len)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
+    struct virtual_machine * vm = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_VM);
     struct pm_region_operation * pmr = search_pm_region_callback(vm, addr);
     if (!pmr) {
         return -EINVAL;
@@ -462,7 +467,7 @@ uint32_t
 do_unlinkat(struct hart * hartptr, uint32_t dirfd,
             const char * pathname, uint32_t flags)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
+    struct virtual_machine * vm_fs = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FS);
     char * ptr = (char *)pathname;
     for(;*ptr && *ptr == ' '; ptr++);
     int is_relative_path = *ptr != '/';
@@ -472,7 +477,7 @@ do_unlinkat(struct hart * hartptr, uint32_t dirfd,
     ASSERT(!canonicalize_path_name(guest_cpath, (const uint8_t *)pathname));
     if (is_relative_path) {
         if ((int32_t)dirfd == AT_FDCWD) {
-            relative_dir_path = vm->cwd;
+            relative_dir_path = vm_fs->cwd;
         } else {
             // FIXME
         }
@@ -481,7 +486,7 @@ do_unlinkat(struct hart * hartptr, uint32_t dirfd,
     uint8_t host_path[MAX_PATH];
     uint8_t host_cpath[MAX_PATH];
     ptr = (char *)host_path;
-    ptr = append_string(ptr, (const char *)vm->root);
+    ptr = append_string(ptr, (const char *)vm_fs->root);
     ptr = append_string(ptr, (const char *)relative_dir_path);
     ptr = append_string(ptr, (const char *)guest_cpath);
     ASSERT(!canonicalize_path_name(host_cpath, host_path));
@@ -492,36 +497,39 @@ do_unlinkat(struct hart * hartptr, uint32_t dirfd,
 uint32_t
 do_lseek(struct hart * hartptr, uint32_t fd, uint32_t offset, uint32_t whence)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (fd > MAX_FILES_NR || !vm_files->files[fd].valid) {
         return -EBADF;
     }
     
-    return ERRNO(lseek(vm->files[fd].host_fd, offset, whence)); 
+    return ERRNO(lseek(vm_files->files[fd].host_fd, offset, whence));
 }
 
 static uint32_t
 do_fcntl_duplicate_fd(struct hart * hartptr, uint32_t fd, uint32_t cmd, uint32_t opaque)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (fd > MAX_FILES_NR || !vm_files->files[fd].valid) {
         return -EBADF;
     }
 
-    struct file * target_file = allocate_file_descriptor(vm);
+    struct file * target_file = allocate_file_descriptor(vm_files);
     if (!target_file) {
         return -ENOMEM;
     }
 
-    int32_t host_fd = fcntl(vm->files[fd].host_fd, cmd, opaque);
+    int32_t host_fd = fcntl(vm_files->files[fd].host_fd, cmd, opaque);
     if (host_fd < 0) {
-        deallocate_file_descriptor(vm, target_file);
+        deallocate_file_descriptor(vm_files, target_file);
         return ERRNO(host_fd);
     }
 
     target_file->host_fd = host_fd;
-    if (vm->files[fd].guest_cpath) {
-        target_file->guest_cpath = strdup(vm->files[fd].guest_cpath);
+    if (vm_files->files[fd].host_cpath) {
+        target_file->host_cpath = strdup(vm_files->files[fd].host_cpath);
+        target_file->clone_blob.file_type = vm_files->files[fd].clone_blob.file_type;
+        target_file->clone_blob.flags = vm_files->files[fd].clone_blob.flags;
+        target_file->clone_blob.mode = vm_files->files[fd].clone_blob.mode;
     }
     return target_file->fd;
 }
@@ -529,31 +537,31 @@ do_fcntl_duplicate_fd(struct hart * hartptr, uint32_t fd, uint32_t cmd, uint32_t
 static uint32_t
 do_fcntl_getfd(struct hart * hartptr, uint32_t fd)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (fd > MAX_FILES_NR || !vm_files->files[fd].valid) {
         return -EBADF;
     }
-    return ERRNO(fcntl(vm->files[fd].host_fd, F_GETFD));
+    return ERRNO(fcntl(vm_files->files[fd].host_fd, F_GETFD));
 }
 
 static uint32_t
 do_fcntl_getfl(struct hart * hartptr, uint32_t fd)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (fd > MAX_FILES_NR || !vm_files->files[fd].valid) {
         return -EBADF;
     }
-    return ERRNO(fcntl(vm->files[fd].host_fd, F_GETFL));
+    return ERRNO(fcntl(vm_files->files[fd].host_fd, F_GETFL));
 }
 
 static uint32_t
 do_fcntl_setfd(struct hart * hartptr, uint32_t fd, uint32_t opaque)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (fd > MAX_FILES_NR || !vm_files->files[fd].valid) {
         return -EBADF;
     }
-    return ERRNO(fcntl(vm->files[fd].host_fd, F_SETFD, opaque));
+    return ERRNO(fcntl(vm_files->files[fd].host_fd, F_SETFD, opaque));
 }
 
 uint32_t
@@ -584,18 +592,21 @@ call_fnctl(struct hart * hartptr, uint32_t fd, uint32_t cmd, uint32_t opaque)
 uint32_t
 call_dup(struct hart * hartptr, uint32_t fd)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (fd > MAX_FILES_NR || !vm->files[fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (fd > MAX_FILES_NR || !vm_files->files[fd].valid) {
         return -EBADF;
     }
-    struct file * target_file = allocate_file_descriptor(vm);
+    struct file * target_file = allocate_file_descriptor(vm_files);
     if (!target_file) {
         return -ENOMEM;
     }
 
-    target_file->host_fd = dup(vm->files[fd].host_fd);
-    if (vm->files[fd].guest_cpath) {
-        target_file->guest_cpath = strdup(vm->files[fd].guest_cpath);
+    target_file->host_fd = dup(vm_files->files[fd].host_fd);
+    if (vm_files->files[fd].host_cpath) {
+        target_file->host_cpath = strdup(vm_files->files[fd].host_cpath);
+        target_file->clone_blob.file_type = vm_files->files[fd].clone_blob.file_type;
+        target_file->clone_blob.flags = vm_files->files[fd].clone_blob.flags;
+        target_file->clone_blob.mode = vm_files->files[fd].clone_blob.mode;
     }
 
     return target_file->fd;
@@ -605,8 +616,8 @@ uint32_t
 call_dup3(struct hart * hartptr, uint32_t old_fd, uint32_t new_fd,
           uint32_t flags)
 {
-    struct virtual_machine * vm = hartptr->vmptr;
-    if (old_fd > MAX_FILES_NR || !vm->files[old_fd].valid) {
+    struct virtual_machine * vm_files = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FILES);
+    if (old_fd > MAX_FILES_NR || !vm_files->files[old_fd].valid) {
         return -EBADF;
     }
 
@@ -618,15 +629,18 @@ call_dup3(struct hart * hartptr, uint32_t old_fd, uint32_t new_fd,
         return 0;
     }
 
-    if (vm->files[new_fd].valid) {
+    if (vm_files->files[new_fd].valid) {
         do_close(hartptr, new_fd);
     }
 
-    vm->files[new_fd].valid = 1;
-    vm->files[new_fd].fd = new_fd;
-    vm->files[new_fd].host_fd = dup(vm->files[old_fd].host_fd);
-    if (vm->files[old_fd].guest_cpath) {
-        vm->files[new_fd].guest_cpath = strdup(vm->files[old_fd].guest_cpath);
+    vm_files->files[new_fd].valid = 1;
+    vm_files->files[new_fd].fd = new_fd;
+    vm_files->files[new_fd].host_fd = dup(vm_files->files[old_fd].host_fd);
+    if (vm_files->files[old_fd].host_cpath) {
+        vm_files->files[new_fd].host_cpath = strdup(vm_files->files[old_fd].host_cpath);
+        vm_files->files[new_fd].clone_blob.file_type = vm_files->files[old_fd].clone_blob.file_type;
+        vm_files->files[new_fd].clone_blob.mode = vm_files->files[old_fd].clone_blob.mode;
+        vm_files->files[new_fd].clone_blob.flags = vm_files->files[old_fd].clone_blob.flags;
     }
     return new_fd;
 }
@@ -634,15 +648,19 @@ call_dup3(struct hart * hartptr, uint32_t old_fd, uint32_t new_fd,
 void
 dump_file_descriptors(struct virtual_machine * vm)
 {
+    struct virtual_machine * vm_files = get_linked_vm(vm, LINKAGE_HINT_FILES);
+    struct virtual_machine * vm_fs = get_linked_vm(vm, LINKAGE_HINT_FS);
     log_info("dump file descriptors\n");
+    log_info("\troot: %s\n", vm_fs->root);
+    log_info("\tcwd : %s\n", vm_fs->cwd);
     int idx = 0;
     for (idx = 0; idx < MAX_FILES_NR; idx++) {
-        if (!vm->files[idx].valid) {
+        if (!vm_files->files[idx].valid) {
             continue;
         }
         log_info("\tfd:%-2d host_fd:%-2d  filepath:%s\n",
-                 vm->files[idx].fd, vm->files[idx].host_fd,
-                 vm->files[idx].guest_cpath);
+                 vm_files->files[idx].fd, vm_files->files[idx].host_fd,
+                 vm_files->files[idx].host_cpath);
     }
 }
 

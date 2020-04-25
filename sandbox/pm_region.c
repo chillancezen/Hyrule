@@ -17,8 +17,10 @@ dump_memory_regions(struct virtual_machine * vm)
     int idx = 0;
     log_info("dump memory layout\n");
     for(idx = 0; idx < vm->nr_pmr_ops; idx++) {
-        log_info("\t[0x%08x - 0x%08x] %s\n", vm->pmr_ops[idx].addr_low,
-                 vm->pmr_ops[idx].addr_high, vm->pmr_ops[idx].pmr_desc);
+        log_info("\t[0x%08x - 0x%08x] %s host_base:%p\n",
+                 vm->pmr_ops[idx].addr_low,
+                 vm->pmr_ops[idx].addr_high, vm->pmr_ops[idx].pmr_desc,
+                 vm->pmr_ops[idx].host_base);
     }
 }
 int

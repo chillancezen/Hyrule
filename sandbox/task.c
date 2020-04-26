@@ -188,7 +188,7 @@ task_files_init(struct virtual_machine * current_vm,
 }
 
 #include <translation.h>
-
+#include <vmm_sched.h>
 /*
  * This will duplicate all information of a task including cpu state information.
  * it's usually called when creating a process.
@@ -204,6 +204,7 @@ clone_task(struct virtual_machine * current_vm, uint32_t flags)
     task_fs_init(current_vm, child_vm, flags);
     task_files_init(current_vm, child_vm, flags);
     register_task(child_vm);
+    // XXX: now the child process is able to be scheduled.
     vmresume(child_vm->hartptr);
     return child_vm->pid;
 }

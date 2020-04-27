@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <util.h>
 #include <list.h>
+#include <vmm_sched.h>
 
 struct integer_register_profile {
     REGISTER_TYPE zero;
@@ -60,6 +61,15 @@ struct status_control_blob {
     uint32_t mpp:2;
 };
 
+enum task_state {
+    TASK_STATE_ZOMBIE = 0, // The task state to detect unexpected failure.
+    TASK_STATE_RUNNING,
+    TASK_STATE_INTERRUPTIBLE,
+    TASK_STATE_UNINTERRUPTIBLE,
+    TASK_STATE_EXITING,
+    TASK_STATE_MAX,
+};
+
 struct tlb_entry;
 struct hart {
     // DONT't PUT ANY FIELDS HERE
@@ -100,9 +110,16 @@ struct hart {
     uint64_t tsc;
     // =================== fields above are not cared by APP-LEVEL emulation====
 
+    struct x86_64_cpustate * host_cpustate;
+
+    enum task_state state;
+    enum task_state non_stop_state;
+
     struct list_elem list;   
 }__attribute__((aligned(64)));
 
+void
+transit_state(struct hart * hartptr, enum task_state target_state);
 
 #define HART_REG(hartptr, index)                                               \
     (((uint32_t *)&((hartptr)->registers))[index])

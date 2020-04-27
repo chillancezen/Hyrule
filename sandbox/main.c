@@ -12,6 +12,8 @@
 #include <debug.h>
 #include <ini.h>
 #include <app.h>
+#include <vmm_sched.h>
+#include <task_sched.h>
 
 static void
 log_init(void)
@@ -42,6 +44,18 @@ main(int argc, char ** argv)
         NULL
     };
     application_sandbox_init(&sandbox_vm, argv[1], argv + 1, envp);
-    vmresume(sandbox_vm.hartptr);
+
+    // The initial process is initialized as current task to be scheduled.
+    // no need to put it in running_tasks and yield cpu to run it.
+    // XXX: finally it's been made a init task put into running queue
+    transit_state(sandbox_vm.hartptr, TASK_STATE_RUNNING);
+    task_vmm_sched_init(sandbox_vm.hartptr,
+                        (void (*)(void *))vmresume,
+                        sandbox_vm.hartptr);
+    schedule_task(sandbox_vm.hartptr);
+
+    // initialize idle task which is the first task to run.
+    schedule_idle_task();
+    __not_reach();
     return 0;
 }

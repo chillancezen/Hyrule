@@ -3,6 +3,7 @@
  */
 
 #include <task.h>
+#include <task_sched.h>
 #include <list.h>
 #include <vm.h>
 #include <log.h>
@@ -205,7 +206,9 @@ clone_task(struct virtual_machine * current_vm, uint32_t flags)
     task_files_init(current_vm, child_vm, flags);
     register_task(child_vm);
     // XXX: now the child process is able to be scheduled.
-    vmresume(child_vm->hartptr);
+    schedule_task(child_vm->hartptr);
+    
+    //yield_cpu();
     return child_vm->pid;
 }
 

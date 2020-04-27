@@ -27,6 +27,7 @@ struct x86_64_cpustate {
     uint64_t trap_reason; // trap_reason must be pushed to stack before calling
 }__attribute__((packed));
 
+#define USERSPACE_TRAP_REASON_INIT      0x0
 #define USERSPACE_TRAP_REASON_YIELD_CPU 0x1
 
 #define call_userspace_trap(reason) {                                          \
@@ -40,5 +41,9 @@ struct x86_64_cpustate {
 }
 
 #define yield_cpu()     call_userspace_trap(USERSPACE_TRAP_REASON_YIELD_CPU)
+
+
+void
+schedule_idle_task(void);
 #endif
 

@@ -76,6 +76,7 @@ hart_init(struct hart * hart_instance, int hart_id)
     memset(hart_instance->csrs_base, 0x0, 4096 * sizeof(struct csr_entry));
     csr_registery_init(hart_instance);
 
+    hart_instance->state = TASK_STATE_RUNNING;
     // HART initialized as M-MODE
     hart_instance->privilege_level = PRIVILEGE_LEVEL_MACHINE;
 }

@@ -37,6 +37,11 @@ struct iovec32 {
     uint32_t iov_len;
 }__attribute__((packed));
 
+#define MAX_PATH 512
+
+int
+canonicalize_path_name(uint8_t * dst, const uint8_t * src);
+
 void
 vfs_init(struct virtual_machine * vm);
 

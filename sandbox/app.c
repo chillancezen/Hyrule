@@ -91,7 +91,10 @@ void
 vma_generic_reclaim(void * opaque, struct hart * hartptr,
                     struct pm_region_operation * pmr)
 {
-    free(pmr->host_base);
+    if (pmr->host_base) {
+        free(pmr->host_base);
+        pmr->host_base = NULL;
+    }
 }
 
 #define DEFAULT_STACK_SIZE  (1024 * 1024 * 8)
@@ -168,7 +171,7 @@ mmap_setup(struct virtual_machine * vm, uint32_t addr_low, uint32_t len,
     register_pm_region_operation(vm, &pmr);
 }
 
-static void
+void
 program_init(struct virtual_machine * vm, const char * app_path)
 {
     int fd_app = elf_open(app_path);
@@ -218,7 +221,7 @@ program_init(struct virtual_machine * vm, const char * app_path)
 #define MAX_NR_ENVP 128
 #define MAX_NR_ARGV 128
 
-static void
+void
 env_setup(struct virtual_machine * vm, char ** argv, char ** envp)
 {
     struct hart * hartptr = hart_by_id(vm, 0);
@@ -359,12 +362,16 @@ application_sandbox_init(struct virtual_machine * vm, const char * app_path,
     memset(vm, 0x0, sizeof(struct virtual_machine));
 
     cpu_init(vm);
+    // do *_VM setup
     program_init(vm, app_path);
     env_setup(vm, argv, envp);
-
+    
+    // do *_FS setup
     app_root_init(vm);
+    // do *_FILES setup
     vfs_init(vm);
 
+    // do *_THREAD setup
     misc_init(vm);
     breakpoints_init(vm);
 

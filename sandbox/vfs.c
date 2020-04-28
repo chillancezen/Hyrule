@@ -20,9 +20,8 @@
 #include <sys/sendfile.h>
 #include <fcntl.h>
 
-#define MAX_PATH 512
 
-static int
+int
 canonicalize_path_name(uint8_t * dst, const uint8_t * src)
 {
     int idx = 0;

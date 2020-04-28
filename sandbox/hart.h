@@ -118,6 +118,13 @@ struct hart {
     struct list_elem list;   
 }__attribute__((aligned(64)));
 
+static inline void
+reset_registers(struct hart * hartptr)
+{
+    memset(&hartptr->registers, 0x0, sizeof(hartptr->registers));
+    hartptr->pc = 0;
+}
+
 void
 transit_state(struct hart * hartptr, enum task_state target_state);
 

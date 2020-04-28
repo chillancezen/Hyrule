@@ -5,6 +5,7 @@
 #include <task_sched.h>
 #include <util.h>
 #include <log.h>
+#include <vm.h>
 
 static struct hart idle_task;
 
@@ -58,8 +59,8 @@ userspace_trap_handler(struct x86_64_cpustate * cpu)
         next_task = &idle_task;
     }
     current = next_task;
+    ASSERT(current && current->host_cpustate);
     next_task_stack = (uint64_t)current->host_cpustate;
-    log_info("userspace_trap_handler:%d\n", cpu->trap_reason);
     return next_task_stack;
 }
 

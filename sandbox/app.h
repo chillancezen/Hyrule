@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2020 Jie Zheng
  */
+#ifndef _APP_H
+#define _APP_H
 #include <vm.h>
 
 
@@ -12,3 +14,9 @@ void
 application_sandbox_init(struct virtual_machine * vm, const char * app_path,
                          char ** argv, char ** envp);
 
+void
+ program_init(struct virtual_machine * vm, const char * app_path);
+
+void
+env_setup(struct virtual_machine * vm, char ** argv, char ** envp);
+#endif

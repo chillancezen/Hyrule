@@ -62,4 +62,4 @@ Zelda.drive
 qemu.log
 zelda.dtb
 guest/guest.rv32.img
-vmm/vmx
+sandbox/vmx

@@ -13,6 +13,9 @@
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <uaccess.h>
+#include <tinyprintf.h>
+#include <app.h>
 
 static struct list_elem global_task_list_head;
 
@@ -88,6 +91,28 @@ duplicate_virtual_memory(struct virtual_machine * current_vm,
         if (&current_vm->pmr_ops[idx] == current_vm->vma_stack) {
             child_vm->vma_stack = &child_vm->pmr_ops[idx];
         }
+    }
+}
+
+void
+reclaim_virtual_memory(struct virtual_machine * vm)
+{
+    if (vm->cloned_vm) {
+        ASSERT(vm->parent_vm);
+        deference_task(vm->parent_vm);
+        vm->cloned_vm = 0;
+    } else {
+        int idx = 0;
+        for (idx = 0; idx < vm->nr_pmr_ops; idx++) {
+            if (vm->pmr_ops[idx].pmr_reclaim) {
+                vm->pmr_ops[idx].pmr_reclaim(vm->pmr_ops[idx].opaque,
+                                             vm->hartptr,
+                                             &vm->pmr_ops[idx]);
+            }
+        }
+        vm->nr_pmr_ops = 0;
+        vm->vma_heap = NULL;
+        vm->vma_stack = NULL;
     }
 }
 
@@ -206,8 +231,10 @@ clone_task(struct virtual_machine * current_vm, uint32_t flags)
     task_files_init(current_vm, child_vm, flags);
     register_task(child_vm);
     // XXX: now the child process is able to be scheduled.
+    task_vmm_sched_init(child_vm->hartptr,
+                        (void (*)(void *))vmresume,
+                        child_vm->hartptr);
     schedule_task(child_vm->hartptr);
-    
     //yield_cpu();
     return child_vm->pid;
 }
@@ -238,4 +265,98 @@ call_clone(struct hart * hartptr, uint32_t flags, uint32_t child_stack_addr,
               ptid_addr, tls_addr, ctid_addr);
     
     return clone_task(current, flags);
+}
+
+#define MAX_NR_ARGV 128
+#define MAX_NR_ENVP 128
+
+uint32_t
+call_execve(struct hart * hartptr,
+            uint32_t filename_addr,
+            uint32_t argv_addr,
+            uint32_t envp_addr)
+{
+    // XXX: we only receive binary executable file
+    char * filename = strdup(user_world_pointer(hartptr, filename_addr));
+    uint32_t * argv = user_world_pointer(hartptr, argv_addr);
+    uint32_t * envp = user_world_pointer(hartptr, envp_addr);
+    __attribute__((unused)) char * host_argv[MAX_NR_ARGV];
+    __attribute__((unused)) char * host_envp[MAX_NR_ENVP];
+    int idx = 0;
+    for (idx = 0; idx < MAX_NR_ARGV - 1; idx++) {
+        if (!argv[idx]) {
+            break;   
+        }
+        host_argv[idx] = strdup((char *)user_world_pointer(hartptr, argv[idx]));
+    }
+    host_argv[idx] = NULL;
+
+    for (idx = 0; idx < MAX_NR_ENVP; idx++) {
+        if (!envp[idx]) {
+            break;
+        }
+        host_envp[idx] = strdup((char *)user_world_pointer(hartptr, envp[idx]));
+    }
+    host_envp[idx] = NULL;
+
+    // Now all paremteres that host can see are all ready
+    // XXX: even execevi() is called in thread context, it works well.
+    struct virtual_machine * vm_vm = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_VM);
+    // Now it's safe to release the virtual memory allocated for previous task,
+    // because we do backup all these strings.
+    reclaim_virtual_memory(vm_vm);
+
+
+    // canonicalize filename
+    char host_path[MAX_PATH];
+    char host_cpath[MAX_PATH];
+    {
+        const char * ptr = filename;
+        for (; *ptr && *ptr == ' '; ptr++);
+        int is_absolute = *ptr == '/';
+        
+        char guest_cpath[MAX_PATH];
+        if (is_absolute) {
+            canonicalize_path_name((uint8_t *)guest_cpath, (const uint8_t *)ptr);
+        } else {
+            char guest_path[MAX_PATH];
+            tfp_sprintf(guest_path, "%s/%s", vm_vm->cwd, ptr);
+            canonicalize_path_name((uint8_t *)guest_cpath, (const uint8_t *)guest_path);
+        }
+        tfp_sprintf(host_path, "%s/%s", vm_vm->root, guest_cpath);
+        canonicalize_path_name((uint8_t *)host_cpath, (const uint8_t *)host_path);
+    }
+    // XXX: MUST flush the translation cache because the instruction stream has
+    // changed.
+    reset_registers(hartptr);
+    flush_translation_cache(hartptr);
+
+    program_init(vm_vm, host_cpath);
+    env_setup(vm_vm, host_argv, host_envp);
+    
+    free(filename);
+    for (idx = 0; idx < MAX_NR_ARGV && host_argv[idx]; idx++) {
+        free(host_argv[idx]);
+    }
+    for (idx = 0; idx < MAX_NR_ENVP && host_envp[idx]; idx++) {
+        free(host_envp[idx]);
+    }
+   
+    // you might yield cpu here, but it's not necessary.
+    yield_cpu(); 
+    // note a successful execve() all never return.
+    vmresume(hartptr);
+    return 0;
+}
+uint32_t
+call_wait4(struct hart * hartptr,
+           int32_t pid,
+           uint32_t wstatus_addr,
+           uint32_t options,
+           uint32_t rusage_addr)
+{
+    // FIXME: implement the wait body
+    transit_state(hartptr, TASK_STATE_INTERRUPTIBLE);
+    yield_cpu();
+    return 0;
 }

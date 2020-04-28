@@ -391,7 +391,9 @@ syscall_init(void)
     _(214, call_brk);
     _(215, call_munmap);
     _(220, call_clone);
+    _(221, call_execve);
     _(222, call_mmap);
+    _(260, call_wait4);
     _(291, call_statx);
 #undef _
 }

@@ -8,6 +8,7 @@
 #include <util.h>
 #include <list.h>
 #include <vmm_sched.h>
+#include <wait_queue.h>
 
 struct integer_register_profile {
     REGISTER_TYPE zero;
@@ -115,6 +116,13 @@ struct hart {
     enum task_state state;
     enum task_state non_stop_state;
 
+    // e.g. in case that the parent waits for the child to be terminated, 
+    // the parent issue a wait action in the queue
+    struct wait_queue_head wq_state_notification;
+    uint8_t wait_state_exited:1;
+    uint8_t wait_state_stopped:1;
+    uint8_t wait_state_continued:1;
+     
     struct list_elem list;   
 }__attribute__((aligned(64)));
 

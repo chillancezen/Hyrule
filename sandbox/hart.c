@@ -79,6 +79,8 @@ hart_init(struct hart * hart_instance, int hart_id)
     hart_instance->state = TASK_STATE_RUNNING;
     // HART initialized as M-MODE
     hart_instance->privilege_level = PRIVILEGE_LEVEL_MACHINE;
+
+    initialize_wait_queue_head(&hart_instance->wq_state_notification);
 }
 
 
@@ -167,6 +169,7 @@ search_translation_item(struct hart * hart_instance,
     #endif
 }
 
+#include <vm.h>
 void
 dump_hart(struct hart * hartptr)
 {
@@ -177,6 +180,7 @@ dump_hart(struct hart * hartptr)
         "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
     };
     printf("dump hart:%p\n", hartptr);
+    printf("\tprocess-id: %d\n", hartptr->native_vmptr->pid);
     printf("\thart-id: %d\n", hartptr->hart_id);
     printf("\tpc: 0x%x\n", hartptr->pc);
     int index = 0;

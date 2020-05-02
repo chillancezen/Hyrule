@@ -16,9 +16,43 @@
 #include <uaccess.h>
 #include <tinyprintf.h>
 #include <app.h>
+#include <wait_queue.h>
 
 static struct list_elem global_task_list_head;
 
+uint8_t *
+task_state_to_string(enum task_state stat);
+
+
+void
+raw_task_wake_up(struct hart * task)
+{
+    log_debug("wake up process:%d current status:%s\n",
+              task->native_vmptr->pid,
+              task_state_to_string(task->state));
+
+    switch(task->state)
+    {
+        case TASK_STATE_RUNNING:
+            break;
+        case TASK_STATE_INTERRUPTIBLE:
+            transit_state(task, TASK_STATE_RUNNING);
+            break;
+        case TASK_STATE_UNINTERRUPTIBLE:
+            // In an `TASK_STATE_UNINTERRUPTIBLE` state, the previous
+            // `non_stop_state` must be in `TASK_STATE_INTERRUPTIBLE`, we
+            // restore it to RUNNING state, but do not run the task
+            // immediately. it muust be continued with explicit SIGCONT signal.
+            ASSERT(task->non_stop_state == TASK_STATE_RUNNING ||
+                   task->non_stop_state == TASK_STATE_INTERRUPTIBLE);
+            task->non_stop_state = TASK_STATE_RUNNING;
+            break;
+        default:
+            log_fatal("current task state:%d\n", task->state);
+            __not_reach();
+            break;
+    }
+}
 
 void
 dump_threads(struct hart * hartptr)
@@ -40,6 +74,7 @@ dump_threads(struct hart * hartptr)
     }
     LIST_FOREACH_END();
 }
+
 static struct virtual_machine *
 allocate_virtual_machine_descriptor(void)
 {
@@ -243,9 +278,18 @@ void
 register_task(struct virtual_machine * vm)
 {
     list_append(&global_task_list_head, &vm->list_node);
-    log_info("registering task:%d\n", vm->pid);
+    log_info("registering task:%d into global tasklist\n", vm->pid);
 }
 
+
+void
+unregister_task(struct virtual_machine * vm)
+{
+    if (element_in_list(&global_task_list_head, &vm->list_node)) {
+        list_delete(&global_task_list_head, &vm->list_node);
+        log_info("unregistering task:%d from global tasklist\n", vm->pid);
+    }
+}
 
 __attribute__((constructor))
 static void task_pre_init(void)
@@ -253,6 +297,20 @@ static void task_pre_init(void)
     list_init(&global_task_list_head);
 }
 
+
+void
+do_exit(struct hart * hartptr, uint32_t status)
+{
+
+    hartptr->wait_state_exited = 1;
+    
+    wake_up(&hartptr->wq_state_notification);
+    transit_state(hartptr, TASK_STATE_EXITING);
+    yield_cpu();
+
+    // This task will never be rescheduled.
+    __not_reach();
+}
 // GLIBC: ./sysdeps/unix/sysv/linux/bits/sched.h
 //        ./sysdeps/unix/sysv/linux/riscv/clone.S
 uint32_t
@@ -341,22 +399,127 @@ call_execve(struct hart * hartptr,
     for (idx = 0; idx < MAX_NR_ENVP && host_envp[idx]; idx++) {
         free(host_envp[idx]);
     }
-   
+
+    log_debug("execve %s in process:%d\n", host_cpath, hartptr->native_vmptr->pid);
+     
     // you might yield cpu here, but it's not necessary.
     yield_cpu(); 
-    // note a successful execve() all never return.
+    // note a successful execve() will never return.
     vmresume(hartptr);
     return 0;
 }
+
+// wait for the children processes' state changed:
+// 1) the child is terminated
+// 2) the child is stoppped by a signal
+// 3) the child is resumed by a signal
+// *** wait a child terminated to release all the resources for the child
+// without wait: the child remains in a 'zombie' state
+// if child's state has changed: these calls return immediately
+
+#define WNOHANG_MASK     0x1   /* Don't block waiting.  */
+#define WUNTRACED_MASK   0x2   /* Report status of stopped children.  */
+
+struct wait_blob {
+    struct virtual_machine * vm;
+    struct wait_queue wait;
+    struct list_elem list_node;
+};
+
 uint32_t
 call_wait4(struct hart * hartptr,
-           int32_t pid,
+           int32_t pid_hint,
            uint32_t wstatus_addr,
            uint32_t options,
            uint32_t rusage_addr)
 {
-    // FIXME: implement the wait body
-    transit_state(hartptr, TASK_STATE_INTERRUPTIBLE);
-    yield_cpu();
-    return 0;
+    int32_t ret = -1;
+    struct virtual_machine * target_vm = NULL;
+    struct virtual_machine * vm = hartptr->native_vmptr;
+    struct list_elem * list;
+    struct list_elem wait_blob_head;
+    list_init(&wait_blob_head);
+    
+    LIST_FOREACH_START(&global_task_list_head, list) {
+        struct virtual_machine * _vm = CONTAINER_OF(list,
+                                                    struct virtual_machine,
+                                                    list_node);
+        if (vm->pid != _vm->ppid || vm->pid == _vm->pid) {
+            continue;
+        }
+
+        int is_to_wait = 0;
+        if (pid_hint == -1) {
+            // wait for any child process
+            is_to_wait = vm->pid == _vm->ppid;
+        } else if (pid_hint < -1) {
+            // wait if child's tgid is equal to abs(pid_hint)
+            is_to_wait = _vm->tgid == -pid_hint;
+        } else if (!pid_hint) {
+            // wait if child's tgid is equal to the pid of calling process
+            is_to_wait = _vm->tgid == vm->pid;
+        } else {
+            is_to_wait = _vm->pid == pid_hint;
+        }
+        
+        if (!is_to_wait) {
+            continue;
+        }
+
+        // the child is waitable, adjust the ret value in case WNOHANG is specified
+        ret = 0;
+
+        // Found one that has exited
+        if (_vm->hartptr->wait_state_exited) {
+            ret = _vm->pid;
+            target_vm = _vm;
+            break;
+        }
+
+        if (!(options & WNOHANG_MASK)) {
+            // hang until at lease one child state changed.
+            struct wait_blob * _wait_blob = malloc(sizeof(struct wait_blob));
+            ASSERT(_wait_blob);
+            memset(_wait_blob, 0x0, sizeof(struct wait_blob));
+            _wait_blob->vm = _vm;
+            initialize_wait_queue_entry(&_wait_blob->wait, hartptr);
+            list_append(&wait_blob_head, &_wait_blob->list_node);
+            add_wait_queue_entry(&_vm->hartptr->wq_state_notification, &_wait_blob->wait);
+        }
+    }
+    LIST_FOREACH_END();
+
+    // FIXME: handle pending signals
+    if (!list_empty(&wait_blob_head)) {
+        transit_state(hartptr, TASK_STATE_INTERRUPTIBLE);
+        yield_cpu();
+    }
+
+    while ((list = list_fetch(&wait_blob_head))) {
+        struct wait_blob * _wait_blob = CONTAINER_OF(list,
+                                                     struct wait_blob,
+                                                     list_node);
+        if (ret <= 0) {
+            if (_wait_blob->vm->hartptr->wait_state_exited ||
+                (options & WUNTRACED_MASK && (
+                 _wait_blob->vm->hartptr->wait_state_continued ||
+                 _wait_blob->vm->hartptr->wait_state_stopped))) {
+                ret = _wait_blob->vm->pid;
+                target_vm = _wait_blob->vm;
+            }
+        }
+        remove_wait_queue_entry(&_wait_blob->vm->hartptr->wq_state_notification,
+                                &_wait_blob->wait);
+        free(_wait_blob);
+    }
+    log_debug("call_wait4, caller's process id: %d result:%d\n",
+              vm->pid, ret);
+    
+    if (ret > 0) {
+        // remove the process entry in case the child becomes a zombie
+        ASSERT(target_vm);
+        unregister_task(target_vm);
+    }
+
+    return ret;
 }

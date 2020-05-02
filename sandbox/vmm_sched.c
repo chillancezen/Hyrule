@@ -61,6 +61,11 @@ userspace_trap_handler(struct x86_64_cpustate * cpu)
     current = next_task;
     ASSERT(current && current->host_cpustate);
     next_task_stack = (uint64_t)current->host_cpustate;
+    if (current == &idle_task) {
+        log_trace("next task to run: [idle]\n");
+    } else {
+        log_trace("next task to run: %d\n", next_task->native_vmptr->pid);
+    }
     return next_task_stack;
 }
 

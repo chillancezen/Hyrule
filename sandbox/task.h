@@ -13,7 +13,13 @@ void
 dump_threads(struct hart * hartptr);
 
 void
+raw_task_wake_up(struct hart * task);
+
+void
 register_task(struct virtual_machine * vm);
+
+void
+unregister_task(struct virtual_machine * vm);
 
 uint32_t
 call_clone(struct hart * hartptr, uint32_t flags, uint32_t child_stack_addr,
@@ -31,4 +37,7 @@ call_execve(struct hart * hartptr,
             uint32_t filename_addr,
             uint32_t argv_addr,
             uint32_t envp_addr);
+void
+do_exit(struct hart * hartptr, uint32_t status);
+
 #endif

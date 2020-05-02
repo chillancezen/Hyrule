@@ -7,6 +7,7 @@
 #include <mmu.h>
 #include <string.h>
 #include <util.h>
+#include <time.h>
 
 
 static instruction_translator translators[128];
@@ -259,18 +260,22 @@ vmresume(struct hart * hartptr)
                      :"memory");
 }
 
-int counter = 0;
+#define VMM_SCHED_MSECONDS  10
+__thread clock_t physical_thread_timestamp_counter = 0;
+
 void
 vmexit(struct hart * hartptr)
 {
-    uint64_t rsp;
+    // XXX: note this must be in multi-task context, so call yield_cpu() is ok.
+    // Yield CPU like a hardware timer interrupt delivery.
+    clock_t now = clock();
+    clock_t diff = now - physical_thread_timestamp_counter;
+    clock_t diff_in_mseconds = diff / (CLOCKS_PER_SEC / 1000);
+    if (diff_in_mseconds >= VMM_SCHED_MSECONDS) {
+        physical_thread_timestamp_counter = now;
+        yield_cpu();
+    }
 
-    __asm__ volatile("movq %%rsp, %%rax;"
-                     :"=a"(rsp)
-                     :
-                     :"memory");
-    //printf("val = 0x%llx   %d\n", (long long unsigned int)rsp, counter++);
-    //dump_hart(hartptr);
     vmresume(hartptr);
 }
 

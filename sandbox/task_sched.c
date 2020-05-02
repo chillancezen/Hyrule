@@ -4,6 +4,7 @@
 
 #include <task_sched.h>
 #include <vm.h>
+#include <task.h>
 
 // REF: https://github.com/chillancezen/ZeldaOS/blob/master/kernel/task.c
 
@@ -35,7 +36,7 @@ task_state_transition_init(void)
 #undef _
 }
 
-static uint8_t *
+uint8_t *
 task_state_to_string(enum task_state stat)
 {
     uint8_t * str = (uint8_t *)"UNKNOWN";
@@ -98,8 +99,8 @@ schedule_task(struct hart * hartptr)
             break;
     }
     struct virtual_machine * vm = hartptr->native_vmptr;
-    log_info("scheduling task:%d target state: %s\n", vm->pid,
-             task_state_to_string(hartptr->state));
+    log_debug("scheduling task:%d target state: %s\n", vm->pid,
+              task_state_to_string(hartptr->state));
 }
 
 void
@@ -136,7 +137,8 @@ process_exiting_list(void)
     while ((list = list_fetch(&exiting_tasks))) {
         hartptr = CONTAINER_OF(list, struct hart, list);
         // FIXME: reclaim resources of the hart and vm
-        
+
+        //unregister_task(hartptr->native_vmptr);        
     }
 }
 

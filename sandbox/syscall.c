@@ -16,6 +16,7 @@
 #include <task.h>
 
 static sys_handler handlers[NR_SYSCALL_LINUX];
+static char * handler_name[NR_SYSCALL_LINUX];
 
 
 
@@ -32,9 +33,9 @@ do_syscall(struct hart * hartptr, uint32_t syscall_number_a7,
         __not_reach();
     }
     uint32_t ret = handler(hartptr, arg_a0, arg_a1, arg_a2, arg_a3, arg_a4, arg_a5);
-    log_trace("pc:%x syscall:%d args[a0:%08x, a1:%08x, a2:%08x, "
+    log_trace("pc:%x syscall:(%s no.%d) args[a0:%08x, a1:%08x, a2:%08x, "
               "a3:%08x, a4:%08x, a5:%08x] ret:%08x errno:%d\n",
-              hartptr->pc, syscall_number_a7,
+              hartptr->pc, handler_name[syscall_number_a7], syscall_number_a7,
               arg_a0, arg_a1, arg_a2, arg_a3, arg_a4, arg_a5, ret, errno);
     return ret;
 }
@@ -131,8 +132,10 @@ static uint32_t
 call_exit(struct hart * hartptr, uint32_t status)
 {
     // FIXME: a lot of work to do.
-    exit(status);
-    __not_reach();
+
+   do_exit(hartptr, status);
+
+   __not_reach();
     return 0;
 }
 
@@ -351,8 +354,11 @@ __attribute__((constructor)) static void
 syscall_init(void)
 {
     memset(handlers, 0x0, sizeof(handlers));
-#define _(num, func)                                                           \
-    handlers[num] = (sys_handler)func
+#define _(num, func) {                                                         \
+    handlers[num] = (sys_handler)func;                                         \
+    handler_name[num] = #func;                                                 \
+}
+
 
     _(17, call_getcwd);
     _(23, call_dup);

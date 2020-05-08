@@ -1,4 +1,16 @@
+Core Features:
+. mutltiprocessing and multithreading
+. an enhanced debugger
+. support more and more GNU coreutils and Busybox tools.
 
+
+Features on the way:
+* dynamic linking.
+* signaling.
+* futex.
+* networking.
+
+Usage:
 $VERBOSITY=5 ROOT=/home/linky/Hyrule/root/ sandbox/vmx root/bin/bash
 bash: initialize_job_control: no job control in background: No such process
 bash-5.0# uname -a
@@ -41,7 +53,7 @@ bash-5.0#
 
 
 
-System Calls Inventory of Hyrule:
+System Call Inventory of Hyrule:
 17: getcwd
 23: dup
 24: dup3
@@ -82,8 +94,8 @@ System Calls Inventory of Hyrule:
 198: socket
 214: brk
 215: munmap
-220: clone
-221: execve
+220: clone (*)
+221: execve (*)
 222: mmap
 226: mprotect
 233: madvice

@@ -14,6 +14,7 @@
 #include <sys/resource.h>
 #include <sys/select.h>
 #include <task.h>
+#include <tinyprintf.h>
 
 static sys_handler handlers[NR_SYSCALL_LINUX];
 static char * handler_name[NR_SYSCALL_LINUX];
@@ -287,6 +288,34 @@ call_getcwd(struct hart * hartptr, uint32_t buf_addr, uint32_t size)
 }
 
 static uint32_t
+call_chdir(struct hart * hartptr, uint32_t path_addr)
+{
+
+    struct virtual_machine * vm = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_FS);
+    char * path = user_world_pointer(hartptr, path_addr);
+
+    int is_absolute_path = 0;
+    char * ptr = path;
+    for (; *ptr && *ptr == ' '; ptr++);
+    is_absolute_path = *ptr == '/';
+
+    char cpath[MAX_PATH];
+    char ncpath[MAX_PATH];
+
+    if (is_absolute_path) {
+        canonicalize_path_name((uint8_t *)cpath, (const uint8_t *)ptr);
+    } else {
+        tfp_sprintf(ncpath, "%s/%s", vm->cwd, ptr);
+        canonicalize_path_name((uint8_t *)cpath, (const uint8_t *)ncpath);
+    }
+
+    tfp_sprintf(cpath, "%s/", cpath);
+    log_debug("process: %d change dir: %s\n", vm->pid, cpath);
+    strcpy(vm->cwd, cpath);
+    return 0;
+}
+
+static uint32_t
 call_getpgid(struct hart * hartptr)
 {
     struct virtual_machine * vm = get_linked_vm(hartptr->native_vmptr, LINKAGE_HINT_NATIVE);
@@ -393,6 +422,7 @@ syscall_init(void)
     _(29, call_ioctl);
     _(35, call_unlinkat);
     _(48, call_faccessat);
+    _(49, call_chdir);
     _(56, call_openat);
     _(57, call_close);
     _(61, call_getdents64);

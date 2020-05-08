@@ -1,4 +1,4 @@
-```
+
 $VERBOSITY=5 ROOT=/home/linky/Hyrule/root/ sandbox/vmx root/bin/bash
 bash: initialize_job_control: no job control in background: No such process
 bash-5.0# uname -a
@@ -38,4 +38,54 @@ bash-5.0# rm -f text*
 bash-5.0# ls
 bin        coreutils  dev        etc        init       linuxrc    sbin       usr
 bash-5.0#
-```
+
+
+
+System Calls Inventory of Hyrule:
+17: getcwd
+23: dup
+24: dup3
+25: fnctl
+29: ioctl
+35: unlinkat
+48: faccessat
+49: chdir
+56: openat
+57: close
+61: getdents64
+62: lseek
+63: read
+64: write
+66: writev
+71: sendfile
+72: pselect
+78: readlinkat
+93: exit
+94: exit_group
+96: set_tid_address
+99: set_robust_list
+113: clock_gettime
+129: kill
+134: sigaction
+135: sigprocmask
+155: getpgid
+160: uname
+163: getrlimit
+169: gettimeofday
+172: getpid
+173: getppid
+174: getuid
+175: getuid
+176: getuid
+177: getuid
+179: sysinfo
+198: socket
+214: brk
+215: munmap
+220: clone
+221: execve
+222: mmap
+226: mprotect
+233: madvice
+260: wait4
+291: statx

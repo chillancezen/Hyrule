@@ -1,6 +1,7 @@
 Core Features:
-. mutltiprocessing and multithreading
-. an enhanced debugger
+. userspace trapping and scheduling.
+. mutltiprocessing and multithreading.
+. an enhanced debugger.
 . support more and more GNU coreutils and Busybox tools.
 
 

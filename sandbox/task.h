@@ -40,4 +40,11 @@ call_execve(struct hart * hartptr,
 void
 do_exit(struct hart * hartptr, uint32_t status);
 
+uint32_t
+call_set_tid_address(struct hart * hartptr, uint32_t tid_address);
+
+uint32_t
+call_set_robust_list(struct hart * hartptr, uint32_t head_addr,
+                     uint32_t len);
+
 #endif

@@ -63,3 +63,4 @@ qemu.log
 zelda.dtb
 guest/guest.rv32.img
 sandbox/vmx
+root/.bash_history

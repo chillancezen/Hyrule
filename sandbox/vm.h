@@ -73,6 +73,11 @@ struct virtual_machine {
     // to be incremented. only ref_count reaches to 0, the struct can be released.
     int32_t ref_count;
 
+    // two addresses maintained per-thread(task)
+    // http://man7.org/linux/man-pages/man2/set_tid_address.2.html
+    uint32_t set_child_tid;
+    uint32_t clear_child_tid;
+
     struct list_elem list_node;    
 };
 

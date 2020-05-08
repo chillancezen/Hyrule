@@ -133,11 +133,22 @@ call_exit(struct hart * hartptr, uint32_t status)
 {
     // FIXME: a lot of work to do.
 
-   do_exit(hartptr, status);
+    do_exit(hartptr, status);
 
-   __not_reach();
+    __not_reach();
     return 0;
 }
+
+static uint32_t
+call_exit_group(struct hart * hartptr, uint32_t status)
+{
+    // all children in the calling process's thread group are going to be terminated.
+    do_exit(hartptr, status);
+
+    __not_reach();
+    return 0;
+}
+
 
 static uint32_t
 call_mmap(struct hart * hartptr, uint32_t proposal_addr, uint32_t len,
@@ -350,6 +361,21 @@ call_pselect(struct hart * hartptr, uint32_t nfds, uint32_t readfds_addr,
     return 0;
 }
 
+static uint32_t
+call_mprotect(struct hart * hartptr, uint32_t addr_addr, uint32_t len,
+              uint32_t prot)
+{
+    // FIXME: modify pm region attributes
+    return 0;
+}
+
+static uint32_t
+call_madvice(struct hart * hartptr, uint32_t addr_addr, uint32_t len,
+             uint32_t advice)
+{
+    // FIXME: implement the body
+    return 0;
+}
 __attribute__((constructor)) static void
 syscall_init(void)
 {
@@ -377,7 +403,10 @@ syscall_init(void)
     _(71, call_sendfile);
     _(72, call_pselect);
     _(78, call_readlinkat);
-    _(94, call_exit);
+    _(93, call_exit);
+    _(94, call_exit_group);
+    _(96, call_set_tid_address);
+    _(99, call_set_robust_list);
     _(113, call_clock_gettime);
     _(129, call_kill);
     _(134, call_sigaction);
@@ -399,6 +428,8 @@ syscall_init(void)
     _(220, call_clone);
     _(221, call_execve);
     _(222, call_mmap);
+    _(226, call_mprotect);
+    _(233, call_madvice);
     _(260, call_wait4);
     _(291, call_statx);
 #undef _

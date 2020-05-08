@@ -260,7 +260,7 @@ vmresume(struct hart * hartptr)
                      :"memory");
 }
 
-#define VMM_SCHED_MSECONDS  10
+#define VMM_SCHED_MSECONDS  5
 __thread clock_t physical_thread_timestamp_counter = 0;
 
 void

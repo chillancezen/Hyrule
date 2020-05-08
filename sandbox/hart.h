@@ -122,7 +122,7 @@ struct hart {
     uint8_t wait_state_exited:1;
     uint8_t wait_state_stopped:1;
     uint8_t wait_state_continued:1;
-     
+
     struct list_elem list;   
 }__attribute__((aligned(64)));
 

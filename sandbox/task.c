@@ -248,14 +248,39 @@ task_files_init(struct virtual_machine * current_vm,
     }
 }
 
+static void
+task_threads_init(struct virtual_machine * current_vm,
+                  struct virtual_machine * child_vm,
+                  uint32_t child_stack,
+                  uint32_t flags,
+                  uint32_t ctid_addr)
+{
+    if (flags & CLONE_CHILD_SETTID) {
+        child_vm->set_child_tid = ctid_addr;
+        log_debug("clone pid:%d set_child_tid address:0x%x\n",
+                  child_vm->pid, child_vm->set_child_tid);
+    }
+
+    // IF a thread context is created, the stack must be changed to the new one
+    if (flags & CLONE_THREAD) {
+        ASSERT(child_stack);
+        child_vm->hartptr->registers.sp = child_stack;
+    }
+}
+
 #include <translation.h>
 #include <vmm_sched.h>
 /*
  * This will duplicate all information of a task including cpu state information.
  * it's usually called when creating a process.
  */
-uint32_t
-clone_task(struct virtual_machine * current_vm, uint32_t flags)
+static uint32_t
+clone_task(struct virtual_machine * current_vm,
+           uint32_t child_stack,
+           uint32_t flags,
+           uint32_t ptid_addr,
+           uint32_t tls_addr,
+           uint32_t ctid_addr)
 {
     struct virtual_machine * child_vm = allocate_virtual_machine_descriptor();
 
@@ -264,6 +289,8 @@ clone_task(struct virtual_machine * current_vm, uint32_t flags)
     task_vm_init(current_vm, child_vm, flags);
     task_fs_init(current_vm, child_vm, flags);
     task_files_init(current_vm, child_vm, flags);
+    task_threads_init(current_vm, child_vm, child_stack, flags, ctid_addr);
+
     register_task(child_vm);
     // XXX: now the child process is able to be scheduled.
     task_vmm_sched_init(child_vm->hartptr,
@@ -311,6 +338,26 @@ do_exit(struct hart * hartptr, uint32_t status)
     // This task will never be rescheduled.
     __not_reach();
 }
+
+
+uint32_t
+call_set_tid_address(struct hart * hartptr, uint32_t tid_address)
+{
+    struct virtual_machine * vm = hartptr->native_vmptr;
+    vm->set_child_tid = tid_address;
+    log_debug("set_tid_address pid:%d, address:0x%x\n",
+              vm->pid, vm->set_child_tid);
+    return vm->pid;
+}
+
+uint32_t
+call_set_robust_list(struct hart * hartptr, uint32_t head_addr,
+                     uint32_t len)
+{
+    // FIXME: implement the call body
+    return 0;
+}
+
 // GLIBC: ./sysdeps/unix/sysv/linux/bits/sched.h
 //        ./sysdeps/unix/sysv/linux/riscv/clone.S
 uint32_t
@@ -322,7 +369,7 @@ call_clone(struct hart * hartptr, uint32_t flags, uint32_t child_stack_addr,
               "tls_addr:%x ctid_addr:%x}\n", flags, child_stack_addr,
               ptid_addr, tls_addr, ctid_addr);
     
-    return clone_task(current, flags);
+    return clone_task(current, child_stack_addr, flags, ptid_addr, tls_addr, ctid_addr);
 }
 
 #define MAX_NR_ARGV 128

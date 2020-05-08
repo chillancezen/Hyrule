@@ -1,8 +1,9 @@
 Core Features:
+. statically linked riscv32 Linux applications. 
 . userspace trapping and scheduling.
 . mutltiprocessing and multithreading.
 . an enhanced debugger.
-. support more and more GNU coreutils and Busybox tools.
+. more and more GNU coreutils and Busybox tools.
 
 
 Features on the way:

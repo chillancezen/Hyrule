@@ -23,6 +23,7 @@ struct x86_64_cpustate {
     uint64_t r14;
     uint64_t r15;
 
+    uint64_t rflag;
     uint64_t rip; // this is pushed via call.
     uint64_t trap_reason; // trap_reason must be pushed to stack before calling
 }__attribute__((packed));

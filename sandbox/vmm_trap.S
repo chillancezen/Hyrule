@@ -51,6 +51,7 @@ translation_slow_path:
 
 .global user_space_trap
 user_space_trap:
+    pushfq
     pushq %r15
     pushq %r14
     pushq %r13
@@ -87,6 +88,7 @@ user_space_trap_resume:
     popq %r13
     popq %r14
     popq %r15
+    popfq
     retq
 
     
